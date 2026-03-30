@@ -1,0 +1,2482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Market Structures — Economics Simulation</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,400&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f4ef;
+  --surface: #ffffff;
+  --surface2: #f0ece4;
+  --border: #e2ddd4;
+  --ink: #1a1714;
+  --ink2: #5a524a;
+  --ink3: #9a8f84;
+  --accent: #2d6a4f;
+  --accent-light: #e8f5ee;
+  --accent2: #c17b2a;
+  --accent2-light: #fdf3e3;
+  --red: #c0392b;
+  --red-light: #fdecea;
+  --blue: #1d5fa8;
+  --blue-light: #e8f0fb;
+  --sidebar-w: 260px;
+  --topbar-h: 56px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  font-size: 15px;
+}
+
+/* ── TOP BAR ── */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--topbar-h);
+  background: var(--ink);
+  display: flex; align-items: center;
+  padding: 0 1.5rem 0 calc(var(--sidebar-w) + 1.5rem);
+  z-index: 200;
+  gap: 1rem;
+}
+#topbar-title {
+  font-family: 'Fraunces', serif;
+  font-size: 1rem; font-weight: 600;
+  color: #fff; flex: 1;
+}
+#progress-bar-wrap {
+  width: 200px; height: 6px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px; overflow: hidden;
+}
+#progress-bar-fill {
+  height: 100%; background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+#progress-pct {
+  font-size: 0.75rem; color: rgba(255,255,255,0.6);
+  min-width: 36px; text-align: right;
+}
+#autosave-indicator {
+  font-size: 0.7rem; color: rgba(255,255,255,0.4);
+  white-space: nowrap;
+}
+
+/* ── SIDEBAR ── */
+#sidebar {
+  position: fixed; top: var(--topbar-h); left: 0; bottom: 0;
+  width: var(--sidebar-w);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto; z-index: 100;
+  display: flex; flex-direction: column;
+}
+#sidebar-inner { flex: 1; padding: 1rem 0; }
+
+.sidebar-section-label {
+  font-size: 0.65rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink3); padding: 0.5rem 1.2rem 0.3rem;
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.45rem 1.2rem;
+  font-size: 0.82rem; color: var(--ink2);
+  cursor: pointer; transition: all 0.15s;
+  border-left: 3px solid transparent;
+  text-decoration: none;
+}
+.nav-item:hover { background: var(--surface2); color: var(--ink); }
+.nav-item.active {
+  background: var(--accent-light);
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+.nav-item.locked { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+.nav-item.completed .nav-check { color: var(--accent); }
+.nav-check { font-size: 0.7rem; margin-left: auto; opacity: 0.5; }
+.nav-item.completed .nav-check { opacity: 1; }
+
+/* Glossary */
+#glossary-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.75rem; font-weight: 600;
+  color: var(--ink2); cursor: pointer;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+#glossary-body {
+  display: none; padding: 0.5rem 1.2rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+#glossary-body.open { display: block; }
+.gloss-term {
+  margin-bottom: 0.6rem;
+}
+.gloss-term strong {
+  font-size: 0.78rem; color: var(--ink); display: block;
+}
+.gloss-term span {
+  font-size: 0.73rem; color: var(--ink2); line-height: 1.4;
+}
+
+/* ── MAIN CONTENT ── */
+#main {
+  margin-left: var(--sidebar-w);
+  margin-top: var(--topbar-h);
+  padding: 2.5rem 2rem 4rem;
+  max-width: calc(860px + var(--sidebar-w));
+}
+.page { display: none; animation: fadeUp 0.3s ease; }
+.page.active { display: block; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── PAGE COMPONENTS ── */
+.page-eyebrow {
+  font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 0.5rem;
+}
+.page-title {
+  font-family: 'Fraunces', serif;
+  font-size: 2rem; font-weight: 600;
+  color: var(--ink); line-height: 1.2;
+  margin-bottom: 0.75rem;
+}
+.page-subtitle {
+  font-size: 1rem; color: var(--ink2);
+  line-height: 1.6; margin-bottom: 2rem;
+  max-width: 640px;
+}
+.divider {
+  border: none; border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+/* Content cards */
+.content-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  margin-bottom: 1.5rem;
+}
+.content-card h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 1.1rem; font-weight: 600;
+  margin-bottom: 0.6rem; color: var(--ink);
+}
+.content-card p {
+  font-size: 0.92rem; line-height: 1.75;
+  color: var(--ink2); margin-bottom: 0.8rem;
+}
+.content-card p:last-child { margin-bottom: 0; }
+
+/* Did You Know */
+.dyk-box {
+  background: var(--accent2-light);
+  border-left: 4px solid var(--accent2);
+  border-radius: 0 8px 8px 0;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+}
+.dyk-label {
+  font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--accent2); margin-bottom: 0.3rem;
+}
+.dyk-box p {
+  font-size: 0.88rem; color: #5a3e10; line-height: 1.6;
+}
+
+/* Characteristic cards */
+.char-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1rem; margin: 1.5rem 0;
+}
+.char-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px; padding: 1.25rem;
+}
+.char-num {
+  font-size: 1.5rem; font-weight: 600;
+  font-family: 'Fraunces', serif;
+  color: var(--accent); margin-bottom: 0.4rem;
+}
+.char-card h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; }
+.char-card p { font-size: 0.82rem; color: var(--ink2); line-height: 1.5; }
+
+/* Comparison table */
+.compare-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.85rem; margin: 1.5rem 0;
+}
+.compare-table th {
+  background: var(--ink); color: #fff;
+  padding: 0.75rem 1rem; text-align: left;
+  font-weight: 600; font-size: 0.8rem;
+}
+.compare-table td {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink2);
+}
+.compare-table tr:last-child td { border-bottom: none; }
+.compare-table tr:hover td { background: var(--surface2); }
+.compare-table .row-head {
+  font-weight: 600; color: var(--ink);
+  background: var(--surface2);
+}
+
+/* Short answer */
+.sa-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  margin: 2rem 0;
+}
+.sa-label {
+  font-size: 0.7rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--blue); margin-bottom: 0.5rem;
+}
+.sa-question {
+  font-size: 0.95rem; font-weight: 500;
+  color: var(--ink); line-height: 1.6;
+  margin-bottom: 1rem;
+}
+.sa-textarea {
+  width: 100%; min-height: 100px;
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.75rem 1rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem; line-height: 1.6;
+  color: var(--ink); background: var(--bg);
+  resize: vertical; outline: none;
+  transition: border-color 0.15s;
+}
+.sa-textarea:focus { border-color: var(--blue); }
+
+/* Confidence rating */
+.confidence-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.confidence-label {
+  font-size: 0.75rem; color: var(--ink3); margin-right: 0.25rem;
+}
+.conf-btn {
+  padding: 0.3rem 0.8rem; border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface); font-size: 0.75rem;
+  cursor: pointer; transition: all 0.15s; color: var(--ink2);
+}
+.conf-btn:hover { border-color: var(--ink2); }
+.conf-btn.selected-1 { background: #fdecea; border-color: var(--red); color: var(--red); }
+.conf-btn.selected-2 { background: #fff8e1; border-color: #f59e0b; color: #92610a; }
+.conf-btn.selected-3 { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+/* Multiple choice / scenario sorter */
+.mc-question {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  margin-bottom: 1.25rem;
+}
+.mc-q-num {
+  font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink3); margin-bottom: 0.5rem;
+}
+.mc-q-text {
+  font-size: 0.95rem; font-weight: 500;
+  color: var(--ink); line-height: 1.5;
+  margin-bottom: 1rem;
+}
+.mc-options { display: flex; flex-direction: column; gap: 0.5rem; }
+.mc-option {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.65rem 1rem; border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: pointer; transition: all 0.15s;
+  font-size: 0.88rem; color: var(--ink2);
+  background: var(--bg);
+}
+.mc-option:hover { border-color: var(--blue); background: var(--blue-light); }
+.mc-option.selected { border-color: var(--blue); background: var(--blue-light); color: var(--blue); font-weight: 500; }
+.mc-option.correct { border-color: var(--accent); background: var(--accent-light); color: var(--accent); font-weight: 500; }
+.mc-option.wrong { border-color: var(--red); background: var(--red-light); color: var(--red); }
+.mc-letter {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 600; flex-shrink: 0;
+}
+
+/* Business choice */
+.biz-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1.25rem; margin: 1.5rem 0;
+}
+.biz-card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 14px; padding: 1.5rem;
+  cursor: pointer; transition: all 0.2s;
+  position: relative;
+}
+.biz-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+.biz-card.selected { border-color: var(--accent); background: var(--accent-light); }
+.biz-emoji { font-size: 2rem; margin-bottom: 0.75rem; }
+.biz-structure {
+  font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 0.3rem;
+}
+.biz-name {
+  font-family: 'Fraunces', serif;
+  font-size: 1.1rem; font-weight: 600;
+  color: var(--ink); margin-bottom: 0.5rem;
+}
+.biz-desc { font-size: 0.82rem; color: var(--ink2); line-height: 1.5; }
+
+/* Simulation decisions */
+.sim-header {
+  background: var(--ink);
+  border-radius: 12px; padding: 1.5rem 2rem;
+  margin-bottom: 2rem; color: #fff;
+}
+.sim-round-label {
+  font-size: 0.7rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(255,255,255,0.5); margin-bottom: 0.3rem;
+}
+.sim-scenario {
+  font-family: 'Fraunces', serif;
+  font-size: 1.2rem; line-height: 1.4;
+}
+.sim-options { display: flex; flex-direction: column; gap: 0.75rem; margin: 1.5rem 0; }
+.sim-option {
+  display: flex; align-items: flex-start; gap: 1rem;
+  padding: 1rem 1.25rem; border-radius: 10px;
+  border: 1.5px solid var(--border);
+  cursor: pointer; transition: all 0.15s;
+  background: var(--surface);
+}
+.sim-option:hover { border-color: var(--accent); background: var(--accent-light); }
+.sim-option.selected { border-color: var(--accent); background: var(--accent-light); }
+.sim-opt-letter {
+  font-weight: 600; color: var(--accent);
+  font-family: 'Fraunces', serif; font-size: 1rem;
+  min-width: 20px;
+}
+.sim-opt-text { font-size: 0.9rem; color: var(--ink); line-height: 1.5; }
+.consequence-box {
+  background: var(--surface2);
+  border-radius: 10px; padding: 1.25rem 1.5rem;
+  margin-top: 1rem; display: none;
+  border-left: 4px solid var(--accent2);
+}
+.consequence-box.show { display: block; }
+.consequence-box p { font-size: 0.88rem; color: var(--ink2); line-height: 1.6; }
+.consequence-label {
+  font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--accent2); margin-bottom: 0.4rem;
+}
+
+/* Results page */
+.grade-card {
+  background: var(--ink);
+  border-radius: 16px; padding: 2rem 2.5rem;
+  color: #fff; margin-bottom: 2rem;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 1.5rem; align-items: center;
+}
+.grade-meta { font-size: 0.85rem; color: rgba(255,255,255,0.6); line-height: 2; }
+.grade-meta strong { color: #fff; font-weight: 500; }
+.grade-display { text-align: center; }
+.grade-letter {
+  font-family: 'Fraunces', serif;
+  font-size: 4rem; font-weight: 600;
+  line-height: 1; color: #fff;
+}
+.grade-score { font-size: 1rem; color: rgba(255,255,255,0.6); margin-top: 0.25rem; }
+
+.score-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.85rem; margin: 1rem 0;
+}
+.score-table th {
+  background: var(--surface2); padding: 0.6rem 1rem;
+  text-align: left; font-weight: 600; font-size: 0.78rem;
+  color: var(--ink2); border-bottom: 1px solid var(--border);
+}
+.score-table td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink2);
+}
+.score-table .score-good { color: var(--accent); font-weight: 600; }
+.score-table .score-warn { color: var(--accent2); font-weight: 600; }
+.score-table .score-bad { color: var(--red); font-weight: 600; }
+
+.needs-improvement {
+  background: var(--red-light);
+  border: 1px solid #f5c6c2;
+  border-radius: 12px; padding: 1.5rem 2rem;
+  margin: 1.5rem 0;
+}
+.needs-improvement h3 {
+  font-size: 0.9rem; font-weight: 600;
+  color: var(--red); margin-bottom: 0.75rem;
+}
+.improve-link {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.85rem; color: var(--red);
+  cursor: pointer; padding: 0.4rem 0;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+
+.ai-feedback {
+  background: var(--blue-light);
+  border: 1px solid #c5d8f5;
+  border-radius: 12px; padding: 1.5rem 2rem;
+  margin: 1.5rem 0;
+}
+.ai-feedback-label {
+  font-size: 0.68rem; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--blue); margin-bottom: 0.5rem;
+}
+.ai-feedback p { font-size: 0.9rem; color: #1a3a6b; line-height: 1.7; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.7rem 1.5rem; border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+  border: none; text-decoration: none;
+}
+.btn-primary {
+  background: var(--accent); color: #fff;
+}
+.btn-primary:hover { background: #235a42; }
+.btn-secondary {
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { background: var(--surface2); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { background: #a02820; }
+.btn-row {
+  display: flex; gap: 0.75rem; margin-top: 2rem;
+  flex-wrap: wrap;
+}
+
+/* PDF export */
+.pdf-instructions {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px; padding: 1.5rem 2rem;
+  margin: 1.5rem 0;
+}
+.pdf-instructions h3 {
+  font-size: 0.9rem; font-weight: 600; margin-bottom: 0.75rem;
+}
+.pdf-instructions ol {
+  font-size: 0.85rem; color: var(--ink2);
+  line-height: 2; padding-left: 1.25rem;
+}
+
+/* Locked overlay */
+.locked-overlay {
+  text-align: center; padding: 4rem 2rem;
+  color: var(--ink3);
+}
+.locked-overlay .lock-icon { font-size: 3rem; margin-bottom: 1rem; }
+.locked-overlay p { font-size: 0.95rem; line-height: 1.6; }
+
+/* Teacher mode */
+.teacher-badge {
+  display: none;
+  background: #7c3aed; color: #fff;
+  font-size: 0.7rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 0.2rem 0.6rem; border-radius: 4px;
+  margin-left: 0.5rem;
+}
+body.teacher-mode .teacher-badge { display: inline-block; }
+.teacher-answer {
+  display: none;
+  background: #f3e8ff; border: 1px solid #c4b5fd;
+  border-radius: 6px; padding: 0.5rem 0.75rem;
+  font-size: 0.8rem; color: #5b21b6; margin-top: 0.5rem;
+}
+body.teacher-mode .teacher-answer { display: block; }
+.teacher-score-display {
+  display: none;
+  font-size: 0.78rem; font-weight: 600;
+  color: #7c3aed; margin-top: 0.4rem;
+}
+body.teacher-mode .teacher-score-display { display: block; }
+
+/* Cover page */
+.cover-wrap {
+  min-height: calc(100vh - var(--topbar-h));
+  display: flex; align-items: center; justify-content: center;
+}
+.cover-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px; padding: 3rem;
+  max-width: 520px; width: 100%;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.07);
+}
+.cover-logo {
+  font-family: 'Fraunces', serif;
+  font-size: 2.2rem; font-weight: 600;
+  color: var(--ink); margin-bottom: 0.25rem;
+}
+.cover-sub {
+  font-size: 0.85rem; color: var(--ink3);
+  margin-bottom: 2rem;
+}
+.form-field { margin-bottom: 1.25rem; }
+.form-label {
+  display: block; font-size: 0.8rem; font-weight: 600;
+  color: var(--ink2); margin-bottom: 0.4rem;
+}
+.form-input {
+  width: 100%; padding: 0.65rem 1rem;
+  border: 1px solid var(--border); border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem; color: var(--ink);
+  background: var(--bg); outline: none;
+  transition: border-color 0.15s;
+}
+.form-input:focus { border-color: var(--accent); }
+.resume-banner {
+  background: var(--accent-light);
+  border: 1px solid #a8d5bc;
+  border-radius: 8px; padding: 0.75rem 1rem;
+  font-size: 0.85rem; color: #1a5c3a;
+  margin-bottom: 1.5rem; display: none;
+}
+
+/* ── STUDENT WORK REVIEW (Results page) ── */
+.work-section {
+  margin: 2rem 0;
+}
+.work-section-title {
+  font-family: 'Fraunces', serif;
+  font-size: 1.1rem; font-weight: 600;
+  color: var(--ink); margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border);
+}
+.work-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+.work-item-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 0.6rem; gap: 1rem;
+}
+.work-item-q {
+  font-size: 0.88rem; font-weight: 600;
+  color: var(--ink); line-height: 1.5; flex: 1;
+}
+.work-score-badge {
+  font-size: 0.8rem; font-weight: 600;
+  padding: 0.2rem 0.65rem; border-radius: 20px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.work-score-badge.good { background: var(--accent-light); color: var(--accent); }
+.work-score-badge.warn { background: #fff8e1; color: #92610a; }
+.work-score-badge.bad  { background: var(--red-light); color: var(--red); }
+.work-answer {
+  font-size: 0.87rem; color: var(--ink2);
+  line-height: 1.7; background: var(--bg);
+  border-radius: 6px; padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  white-space: pre-wrap;
+}
+.work-answer.correct { border-color: var(--accent); background: var(--accent-light); color: #1a4a32; }
+.work-answer.wrong   { border-color: var(--red);    background: var(--red-light);    color: #7a1a12; }
+.work-correct-note {
+  font-size: 0.78rem; color: var(--accent);
+  margin-top: 0.4rem; font-weight: 500;
+}
+
+/* ── PRINT STYLES ── */
+@media print {
+  /* Hide everything except the results page */
+  #sidebar, #topbar, .btn-row, .btn, #glossary-toggle,
+  #glossary-body, .no-print { display: none !important; }
+
+  body { background: #fff !important; font-size: 11px; margin: 0; }
+  #main { margin: 0 !important; padding: 1rem !important; }
+
+  /* Hide all pages, then show only results */
+  .page { display: none !important; }
+  #page-13 { display: block !important; }
+  #results-content { display: block !important; }
+  #results-locked { display: none !important; }
+
+  /* Keep work items from splitting across pages awkwardly */
+  .work-item { break-inside: avoid; page-break-inside: avoid; }
+  .work-section { break-inside: avoid; page-break-inside: avoid; }
+  .work-section-title { break-after: avoid; page-break-after: avoid; }
+
+  .grade-card {
+    background: #1a1714 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .score-table th {
+    background: #f0ece4 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .work-answer.correct {
+    background: #e8f5ee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .work-answer.wrong {
+    background: #fdecea !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .pdf-instructions { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div id="topbar-title">Market Structures <span class="teacher-badge">Teacher Mode</span></div>
+  <div id="progress-bar-wrap"><div id="progress-bar-fill" style="width:0%"></div></div>
+  <div id="progress-pct">0%</div>
+  <div id="autosave-indicator">●&nbsp; Saved</div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="sidebar-inner">
+    <div class="sidebar-section-label">Pages</div>
+    <!-- nav items injected by JS -->
+    <div id="nav-items"></div>
+  </div>
+  <!-- Glossary -->
+  <div>
+    <div id="glossary-toggle" onclick="toggleGlossary()">
+      📖 Vocabulary Glossary <span id="gloss-arrow">▲</span>
+    </div>
+    <div id="glossary-body" class="open">
+      <!-- terms injected by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div id="main">
+
+<!-- PAGE 0: COVER -->
+<div class="page active" id="page-0">
+  <div class="cover-wrap">
+    <div class="cover-card">
+      <div class="cover-logo">Market Structures</div>
+      <div class="cover-sub">Economics Simulation · Enter your info to begin</div>
+      <div class="resume-banner" id="resume-banner">
+        👋 Welcome back! Your previous progress was found. Resume where you left off?
+        <br><button class="btn btn-primary" style="margin-top:0.6rem;font-size:0.8rem;padding:0.4rem 1rem;" onclick="resumeSession()">Resume</button>
+        <button class="btn btn-secondary" style="margin-top:0.6rem;font-size:0.8rem;padding:0.4rem 1rem;margin-left:0.5rem;" onclick="clearResume()">Start Fresh</button>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Your Full Name</label>
+        <input class="form-input" id="student-name" type="text" placeholder="First Last">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Teacher Name</label>
+        <input class="form-input" id="teacher-name" type="text" placeholder="Mr. / Ms. ...">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Class Period</label>
+        <input class="form-input" id="class-period" type="text" placeholder="e.g. 3rd Period">
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:0.5rem;" onclick="startSim()">Begin Simulation →</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 1: INTRODUCTION -->
+<div class="page" id="page-1">
+  <div class="page-eyebrow">Introduction</div>
+  <div class="page-title">What Kind of Market Are You In?</div>
+  <div class="page-subtitle">Before you run a business, you need to understand the world it operates in. Not all markets are the same — and the type of market you're in changes everything.</div>
+
+  <div class="content-card">
+    <h3>A Tale of Two Businesses</h3>
+    <p>Imagine two scenarios. In the first, you're a wheat farmer. Your product is identical to every other wheat farmer's product. The price is set by the market — you take it or leave it. If you charge even a penny more, every buyer goes to someone else. You have no power.</p>
+    <p>In the second scenario, you're the only company that makes a life-saving drug that keeps people alive. You set the price. If someone needs it, they pay. No competition, no alternatives, no ceiling.</p>
+    <p>Both are legal businesses operating in the United States. But they exist in completely different market structures — and those structures determine how much power you have, how you compete, and how much profit you can earn.</p>
+  </div>
+
+  <div class="content-card">
+    <h3>The Spectrum of Market Power</h3>
+    <p>Economists organize markets into four structures based on how competitive they are. At one end is <strong>perfect competition</strong> — thousands of sellers, no individual power. At the other end is <strong>monopoly</strong> — one seller, total control. In between are <strong>monopolistic competition</strong> and <strong>oligopoly</strong>.</p>
+    <p>In this simulation, you'll learn each structure, apply your knowledge, and then step into the shoes of a business owner and make real decisions in the structure you choose.</p>
+  </div>
+
+  <div class="dyk-box">
+    <div class="dyk-label">💡 Think About It</div>
+    <p>Would you rather be one of 10,000 identical wheat farmers selling at a price you can't control — or the only company making a drug millions of people need? As you go through this simulation, think about who benefits and who loses in each type of market.</p>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-primary" onclick="goToPage(2)">Next: The 4 Characteristics →</button>
+  </div>
+</div>
+
+<!-- PAGE 2: THE 4 CHARACTERISTICS -->
+<div class="page" id="page-2">
+  <div class="page-eyebrow">Framework</div>
+  <div class="page-title">The 4 Key Characteristics</div>
+  <div class="page-subtitle">Every market structure can be analyzed using four lenses. Learn these — they're the framework you'll use throughout the entire simulation.</div>
+
+  <div class="char-grid">
+    <div class="char-card">
+      <div class="char-num">01</div>
+      <h4>Number of Sellers</h4>
+      <p>Is there one seller, a few, or thousands? The more sellers, the more competitive the market and the less power any one firm holds.</p>
+      <p><em>Example: Thousands of corn farmers vs. one local electric utility</em></p>
+    </div>
+    <div class="char-card">
+      <div class="char-num">02</div>
+      <h4>Product Type</h4>
+      <p>Are all products in the market identical (homogeneous), or does each firm's product feel different (differentiated)? Differentiation creates brand loyalty and pricing power.</p>
+      <p><em>Example: Wheat (identical) vs. smartphones (differentiated)</em></p>
+    </div>
+    <div class="char-card">
+      <div class="char-num">03</div>
+      <h4>Barriers to Entry</h4>
+      <p>How hard is it for a new business to enter the market? Low barriers mean more competition over time. High barriers protect existing firms from challengers.</p>
+      <p><em>Example: Opening a lemonade stand (easy) vs. launching a new airline (extremely hard)</em></p>
+    </div>
+    <div class="char-card">
+      <div class="char-num">04</div>
+      <h4>Price Control</h4>
+      <p>Does the firm set its own price (price maker) or does the market set it for them (price taker)? This is often the most important characteristic for understanding profit potential.</p>
+      <p><em>Example: A commodity farmer (price taker) vs. a pharmaceutical company with a patent (price maker)</em></p>
+    </div>
+  </div>
+
+  <div class="content-card">
+    <h3>Why These Four?</h3>
+    <p>These four characteristics work together to define a market structure. A market with <em>many sellers, identical products, no barriers, and no price control</em> is perfect competition. A market with <em>one seller, a unique product, massive barriers, and full price control</em> is a monopoly. The structures in between mix these characteristics in different ways — and those differences have enormous consequences for consumers, businesses, and society.</p>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goToPage(1)">← Back</button>
+    <button class="btn btn-primary" onclick="goToPage(3)">Next: Perfect Competition →</button>
+  </div>
+</div>
+
+<!-- PAGE 3: PERFECT COMPETITION -->
+<div class="page" id="page-3">
+  <div class="page-eyebrow">Market Structure 1 of 4</div>
+  <div class="page-title">Perfect Competition</div>
+  <div class="page-subtitle">The most competitive market possible — and the one where individual firms have the least power.</div>
+
+  <div class="content-card">
+    <h3>🌾 Real-World Anchor: The Wheat Farmer</h3>
+    <p>Imagine you grow wheat on a 200-acre farm in Kansas. So do 50,000 other farmers across the country. Your wheat is chemically identical to theirs. When harvest season comes, you all sell on the same commodity exchange, and the price is whatever the market sets that day. You cannot charge more — buyers will go elsewhere. You cannot charge less — you'd lose money for no reason. You are a <strong>price taker</strong>.</p>
+  </div>
+
+  <div class="content-card">
+    <h3>The Four Characteristics in Perfect Competition</h3>
+    <p><strong>Many sellers:</strong> Hundreds of thousands of farmers, producers, or firms all competing simultaneously.</p>
+    <p><strong>Identical (homogeneous) products:</strong> One bushel of #2 hard red wheat is the same as any other. No branding, no loyalty, no "premium" version.</p>
+    <p><strong>No barriers to entry:</strong> Anyone with land and seeds can start farming. New producers can enter the market freely, which prevents any single firm from gaining long-term power.</p>
+    <p><strong>No price control:</strong> The market price is set by supply and demand across all buyers and sellers. Individual firms are too small to influence the price — they accept it as given.</p>
+  </div>
+
+  <div class="content-card">
+    <h3>Long-Run Equilibrium: Profit = Zero</h3>
+    <p>Here's the surprising part: in the long run, perfectly competitive firms earn <em>zero economic profit</em>. If farmers are earning good profits, new farmers enter the market, increasing supply and pushing the price down until profits disappear. If farmers are losing money, some exit, decreasing supply and pushing the price back up. The market always self-corrects.</p>
+    <p>This doesn't mean farmers earn nothing — zero <em>economic</em> profit means they earn just enough to cover all costs including the cost of their own time and capital. It's a break-even situation.</p>
+  </div>
+
+  <div class="dyk-box">
+    <div class="dyk-label">💡 Did You Know?</div>
+    <p>The Chicago Mercantile Exchange sets commodity prices for wheat, corn, soybeans, and cattle in real time based on global supply and demand. On a single day in 2022, wheat prices jumped 30% due to Russia's invasion of Ukraine — and every wheat farmer in the world woke up either significantly richer or poorer based on decisions made thousands of miles away. That's perfect competition.</p>
+  </div>
+
+  <div class="sa-block">
+    <div class="sa-label">📝 Short Answer — 8 points</div>
+    <div class="sa-question">A wheat farmer is considering charging $0.25 more per bushel than the market price. Using what you know about perfect competition, explain why this would or would not work. Use at least one vocabulary term from this page.</div>
+    <textarea class="sa-textarea" id="sa-p3" placeholder="Write your answer here (2–4 sentences)..." oninput="autosave()"></textarea>
+    <div class="confidence-row">
+      <span class="confidence-label">How confident are you?</span>
+      <button class="conf-btn" id="conf-p3-1" onclick="setConfidence('p3', 1)">🔴 Not sure</button>
+      <button class="conf-btn" id="conf-p3-2" onclick="setConfidence('p3', 2)">🟡 Pretty sure</button>
+      <button class="conf-btn" id="conf-p3-3" onclick="setConfidence('p3', 3)">🟢 Confident</button>
+    </div>
+    <div class="teacher-score-display" id="ts-p3"></div>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goToPage(2)">← Back</button>
+    <button class="btn btn-primary" onclick="goToPage(4)">Next: Monopolistic Competition →</button>
+  </div>
+</div>
+
+<!-- PAGE 4: MONOPOLISTIC COMPETITION -->
+<div class="page" id="page-4">
+  <div class="page-eyebrow">Market Structure 2 of 4</div>
+  <div class="page-title">Monopolistic Competition</div>
+  <div class="page-subtitle">Many sellers, but each one offers something slightly different — and that difference is everything.</div>
+
+  <div class="content-card">
+    <h3>🌮 Real-World Anchor: The Taco Restaurant</h3>
+    <p>Cruz's Tacos is one of 15 taco restaurants in a mid-sized city. They all sell tacos — but Cruz's has a secret green salsa recipe, a loyalty app, a cozy atmosphere, and a devoted following. The restaurant down the street has cheaper prices but smaller portions. A third uses only organic ingredients. They all sell "tacos," but none of them are selling the exact same thing.</p>
+  </div>
+
+  <div class="content-card">
+    <h3>The Four Characteristics in Monopolistic Competition</h3>
+    <p><strong>Many sellers:</strong> Lots of firms compete — think restaurants, clothing stores, salons, coffee shops. The market isn't dominated by any one player.</p>
+    <p><strong>Differentiated products:</strong> Each firm's product is slightly different in some way — branding, quality, location, atmosphere, or features. This is called <strong>product differentiation</strong>.</p>
+    <p><strong>Low barriers to entry:</strong> It's not hard to open a restaurant or clothing boutique. New competitors can enter the market if it looks profitable.</p>
+    <p><strong>Some price control:</strong> Because Cruz's has loyal customers who prefer their salsa, they can charge a bit more than a generic competitor. But not too much — substitutes exist.</p>
+  </div>
+
+  <div class="content-card">
+    <h3>The Role of Non-Price Competition</h3>
+    <p>In monopolistic competition, firms rarely compete purely on price. Instead, they use <strong>non-price competition</strong>: advertising, branding, loyalty programs, interior design, social media, and innovation. The goal is to make customers feel that <em>your</em> version of the product is worth more — or simply irreplaceable.</p>
+    <p>In the long run, like perfect competition, economic profits trend toward zero as new firms enter. But unlike wheat farming, each firm maintains a unique identity — which creates a small degree of lasting market power.</p>
+  </div>
+
+  <div class="dyk-box">
+    <div class="dyk-label">💡 Did You Know?</div>
+    <p>The average American lives within 3 miles of a McDonald's. McDonald's doesn't compete on price — a Big Mac costs roughly the same as similar burgers nearby. What they sell is familiarity: the same taste, the same packaging, the same experience in every city. That consistency <em>is</em> the differentiation. It's why they spend over $800 million a year on advertising.</p>
+  </div>
+
+  <div class="sa-block">
+    <div class="sa-label">📝 Short Answer — 8 points</div>
+    <div class="sa-question">Cruz's Tacos and three competitors all sell tacos at similar prices. Why does Cruz's still spend money on advertising and a loyalty app? Explain using at least one vocabulary term from this page.</div>
+    <textarea class="sa-textarea" id="sa-p4" placeholder="Write your answer here (2–4 sentences)..." oninput="autosave()"></textarea>
+    <div class="confidence-row">
+      <span class="confidence-label">How confident are you?</span>
+      <button class="conf-btn" id="conf-p4-1" onclick="setConfidence('p4', 1)">🔴 Not sure</button>
+      <button class="conf-btn" id="conf-p4-2" onclick="setConfidence('p4', 2)">🟡 Pretty sure</button>
+      <button class="conf-btn" id="conf-p4-3" onclick="setConfidence('p4', 3)">🟢 Confident</button>
+    </div>
+    <div class="teacher-score-display" id="ts-p4"></div>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goToPage(3)">← Back</button>
+    <button class="btn btn-primary" onclick="goToPage(5)">Next: Oligopoly →</button>
+  </div>
+</div>
+
+<!-- PAGE 5: OLIGOPOLY -->
+<div class="page" id="page-5">
+  <div class="page-eyebrow">Market Structure 3 of 4</div>
+  <div class="page-title">Oligopoly</div>
+  <div class="page-subtitle">A small number of large firms dominate — and every move one makes sends ripples through all the others.</div>
+
+  <div class="content-card">
+    <h3>✈️ Real-World Anchor: The Airline Industry</h3>
+    <p>In most U.S. cities, only 2–4 major airlines serve each route. When Delta drops fares on a Chicago–Atlanta flight, United and American match within hours — sometimes minutes. When fuel prices rise, they all add surcharges at roughly the same time. They watch each other constantly, react to each other constantly, and their decisions are deeply intertwined. This is <strong>interdependence</strong> — the defining feature of oligopoly.</p>
+  </div>
+
+  <div class="content-card">
+    <h3>The Four Characteristics in Oligopoly</h3>
+    <p><strong>Few large sellers:</strong> A handful of firms control the majority of the market. Examples: airlines, phone carriers, auto manufacturers, streaming services, breakfast cereal brands.</p>
+    <p><strong>Products can be identical or differentiated:</strong> Steel and oil (sold by a few large producers) are nearly identical. Airlines, phones, and cars are differentiated.</p>
+    <p><strong>High barriers to entry:</strong> You can't just start a new airline or car company. The capital costs, infrastructure requirements, regulatory hurdles, and existing brand loyalty make it extremely hard for new firms to enter.</p>
+    <p><strong>Significant price control — but with interdependence:</strong> Each firm has real pricing power, but can't act without considering how rivals will respond.</p>
+  </div>
+
+  <div class="content-card">
+    <h3>Collusion, Cartels, and Price Wars</h3>
+    <p>Because there are so few firms, they sometimes secretly cooperate — called <strong>collusion</strong> — to fix prices and divide markets. When a group of firms formally coordinate this way, it's called a <strong>cartel</strong>. OPEC, the oil-producing nations' alliance, is one of history's most powerful cartels.</p>
+    <p>Collusion is illegal in the United States under antitrust law. But the temptation is strong: why compete and drive prices down when you can all agree to keep them high? When collusion breaks down, the result is often a brutal <strong>price war</strong> where firms slash prices to steal market share from each other.</p>
+  </div>
+
+  <div class="dyk-box">
+    <div class="dyk-label">💡 Did You Know?</div>
+    <p>In 2016, the European Union fined Apple $14.5 billion for a sweetheart tax deal with Ireland that allowed Apple to pay an effective corporate tax rate of 0.005%. Only a firm with oligopoly-level market power — making hundreds of billions and employing tens of thousands across a continent — could negotiate a deal like that with a sovereign government. The EU ruled it was illegal state aid. Apple appealed, and the case dragged through courts for eight years.</p>
+  </div>
+
+  <div class="sa-block">
+    <div class="sa-label">📝 Short Answer — 8 points</div>
+    <div class="sa-question">When one major airline drops its prices, all the others usually match within hours. Explain why this happens using what you know about oligopoly. Use at least one vocabulary term.</div>
+    <textarea class="sa-textarea" id="sa-p5" placeholder="Write your answer here (2–4 sentences)..." oninput="autosave()"></textarea>
+    <div class="confidence-row">
+      <span class="confidence-label">How confident are you?</span>
+      <button class="conf-btn" id="conf-p5-1" onclick="setConfidence('p5', 1)">🔴 Not sure</button>
+      <button class="conf-btn" id="conf-p5-2" onclick="setConfidence('p5', 2)">🟡 Pretty sure</button>
+      <button class="conf-btn" id="conf-p5-3" onclick="setConfidence('p5', 3)">🟢 Confident</button>
+    </div>
+    <div class="teacher-score-display" id="ts-p5"></div>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goToPage(4)">← Back</button>
+    <button class="btn btn-primary" onclick="goToPage(6)">Next: Monopoly →</button>
+  </div>
+</div>
+
+<!-- PAGE 6: MONOPOLY -->
+<div class="page" id="page-6">
+  <div class="page-eyebrow">Market Structure 4 of 4</div>
+  <div class="page-title">Monopoly</div>
+  <div class="page-subtitle">One seller. No competition. Total control — and total responsibility.</div>
+
+  <div class="content-card">
+    <h3>💧 Real-World Anchor: The Water Utility</h3>
+    <p>In your city, there is exactly one company that delivers water to your tap: ClearFlow Water Co. You cannot switch to a competitor — there isn't one. If ClearFlow raises rates, you pay. You cannot go without water. This is a <strong>natural monopoly</strong>: the infrastructure costs of building a second water system are so enormous that it makes no economic sense for a competitor to enter the market.</p>
+  </div>
+
+  <div class="content-card">
+    <h3>The Four Characteristics in Monopoly</h3>
+    <p><strong>One seller:</strong> A single firm serves the entire market. There are no direct competitors.</p>
+    <p><strong>Unique product with no close substitutes:</strong> You can't easily replace tap water, electricity, or a patented life-saving drug with something else.</p>
+    <p><strong>Very high barriers to entry:</strong> Legal barriers (patents, government licenses), technological barriers (infrastructure), and cost barriers (scale requirements) all prevent new entrants.</p>
+    <p><strong>Full price control — the firm is a price maker:</strong> A monopolist sets whatever price maximizes its profit, constrained only by how much demand will fall at higher prices.</p>
+  </div>
+
+  <div class="content-card">
+    <h3>Types of Monopolies</h3>
+    <p><strong>Natural monopoly:</strong> The market naturally produces one dominant firm because of high infrastructure costs (water, electricity, railways).</p>
+    <p><strong>Government monopoly:</strong> The government grants exclusive rights — the U.S. Postal Service has a legal monopoly on first-class mail delivery.</p>
+    <p><strong>Technological monopoly:</strong> A company holds a patent that prevents competition (pharmaceutical companies, tech innovations).</p>
+    <p>Because monopolies harm consumers through high prices, reduced innovation, and limited choice, governments use <strong>antitrust</strong> law and <strong>regulation</strong> to control them.</p>
+  </div>
+
+  <div class="dyk-box">
+    <div class="dyk-label">💡 Did You Know?</div>
+    <p>Standard Oil, founded by John D. Rockefeller, once controlled 91% of U.S. oil refining. It used predatory pricing — temporarily selling below cost — to drive competitors out of business, then raised prices once they were gone. In 1911, the Supreme Court ruled it an illegal monopoly and broke it into 34 separate companies. Many of those companies still exist today: ExxonMobil, Chevron, and BP are all descendants of Standard Oil.</p>
+  </div>
+
+  <div class="sa-block">
+    <div class="sa-label">📝 Short Answer — 8 points</div>
+    <div class="sa-question">ClearFlow Water Co. is the only water provider in the city. Explain why the government might want to regulate how much ClearFlow can charge, even though ClearFlow is a private company.</div>
+    <textarea class="sa-textarea" id="sa-p6" placeholder="Write your answer here (2–4 sentences)..." oninput="autosave()"></textarea>
+    <div class="confidence-row">
+      <span class="confidence-label">How confident are you?</span>
+      <button class="conf-btn" id="conf-p6-1" onclick="setConfidence('p6', 1)">🔴 Not sure</button>
+      <button class="conf-btn" id="conf-p6-2" onclick="setConfidence('p6', 2)">🟡 Pretty sure</button>
+      <button class="conf-btn" id="conf-p6-3" onclick="setConfidence('p6', 3)">🟢 Confident</button>
+    </div>
+    <div class="teacher-score-display" id="ts-p6"></div>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goToPage(5)">← Back</button>
+    <button class="btn btn-primary" onclick="goToPage(7)">Next: Side-by-Side Comparison →</button>
+  </div>
+</div>
+
+<!-- PAGE 7: COMPARISON TABLE -->
+<div class="page" id="page-7">
+  <div class="page-eyebrow">Review</div>
+  <div class="page-title">Side-by-Side Comparison</div>
+  <div class="page-subtitle">Here's everything you've learned, organized in one place. Use this as a reference — the quiz and scenario sorter will test these ideas.</div>
+
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Characteristic</th>
+        <th>🌾 Perfect Competition</th>
+        <th>🌮 Monopolistic Competition</th>
+        <th>✈️ Oligopoly</th>
+        <th>💧 Monopoly</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="row-head"># of Sellers</td><td>Many (thousands)</td><td>Many</td><td>Few (2–10)</td><td>One</td></tr>
+      <tr><td class="row-head">Product Type</td><td>Identical (homogeneous)</td><td>Differentiated</td><td>Both possible</td><td>Unique, no substitutes</td></tr>
+      <tr><td class="row-head">Barriers to Entry</td><td>None / very low</td><td>Low</td><td>High</td><td>Very high</td></tr>
+      <tr><td class="row-head">Price Control</td><td>None (price taker)</td><td>Some</td><td>Significant</td><td>Full (price maker)</td></tr>
+      <tr><td class="row-head">Long-Run Profit</td><td>Zero (normal profit)</td><td>Zero (normal profit)</td><td>Possible</td><td>Possible</td></tr>
+      <tr><td class="row-head">Key Feature</td><td>Perfect competition among equals</td><td>Product differentiation & branding</td><td>Interdependence</td><td>Single seller, no competition</td></tr>
+      <tr><td class="row-head">Real Example</td><td>Wheat, corn, soybeans</td><td>Restaurants, salons, clothing stores</td><td>Airlines, phone carriers, auto makers</td><td>Local utilities, patented drugs</td></tr>
+    </tbody>
+  </table>
+
+  <div class="content-card">
+    <h3>The Big Pattern</h3>
+    <p>Notice how the characteristics move in one direction as you go from perfect competition to monopoly: fewer sellers → more differentiation → higher barriers → more price control → higher potential profits. Each step along the spectrum represents a shift in power — away from consumers and toward producers.</p>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goToPage(6)">← Back</button>
+    <button class="btn btn-primary" onclick="goToPage(8)">Next: Scenario Sorter →</button>
+  </div>
+</div>
+
+<!-- PAGE 8: SCENARIO SORTER -->
+<div class="page" id="page-8">
+  <div class="page-eyebrow">Graded Activity · 40 points</div>
+  <div class="page-title">Scenario Sorter</div>
+  <div class="page-subtitle">Read each scenario carefully and select the market structure it best represents. 8 questions × 5 points each.</div>
+
+  <div id="scenario-questions"></div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goToPage(7)">← Back</button>
+    <button class="btn btn-primary" onclick="goToPage(9)">Next: Who Benefits? →</button>
+  </div>
+</div>
+
+<!-- PAGE 9: WHO BENEFITS -->
+<div class="page" id="page-9">
+  <div class="page-eyebrow">Big Picture</div>
+  <div class="page-title">Who Benefits?</div>
+  <div class="page-subtitle">Market structures don't just describe how businesses operate — they determine who wins and who loses in the economy.</div>
+
+  <div class="content-card">
+    <h3>🌾 Perfect Competition → Best for Consumers</h3>
+    <p>Prices are as low as possible. No firm has power to overcharge. Consumers get the full benefit of competition. The downside: firms earn minimal profits and have little incentive to invest in innovation.</p>
+  </div>
+  <div class="content-card">
+    <h3>🌮 Monopolistic Competition → Good for Consumers</h3>
+    <p>Prices are reasonable, and consumers get variety and choice. Firms differentiate to attract customers, which drives quality and innovation. The slight inefficiency: resources spent on advertising could theoretically go elsewhere.</p>
+  </div>
+  <div class="content-card">
+    <h3>✈️ Oligopoly → Mixed Results</h3>
+    <p>Large firms can invest in innovation (smartphones, aircraft). But the risk of collusion, price-fixing, and consumer harm is significant. Government regulation is critical in oligopolistic markets.</p>
+  </div>
+  <div class="content-card">
+    <h3>💧 Monopoly → Worst for Consumers</h3>
+    <p>The monopolist charges higher prices, produces less output, and has little incentive to innovate. Consumers have no alternatives. Without government regulation, monopolies can cause significant harm.</p>
+  </div>
+
+  <div class="sa-block">
+    <div class="sa-label">📝 Short Answer — 8 points</div>
+    <div class="sa-question">Of the four market structures, which do you think is best for consumers and which is worst? Use at least two specific pieces of evidence from the simulation to support your answer.</div>
+    <textarea class="sa-textarea" id="sa-p9" placeholder="Write your answer here (3–5 sentences)..." oninput="autosave()"></textarea>
+    <div class="confidence-row">
+      <span class="confidence-label">How confident are you?</span>
+      <button class="conf-btn" id="conf-p9-1" onclick="setConfidence('p9', 1)">🔴 Not sure</button>
+      <button class="conf-btn" id="conf-p9-2" onclick="setConfidence('p9', 2)">🟡 Pretty sure</button>
+      <button class="conf-btn" id="conf-p9-3" onclick="setConfidence('p9', 3)">🟢 Confident</button>
+    </div>
+    <div class="teacher-score-display" id="ts-p9"></div>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goToPage(8)">← Back</button>
+    <button class="btn btn-primary" onclick="goToPage(10)">Next: Choose Your Business →</button>
+  </div>
+</div>
+
+<!-- PAGE 10: CHOOSE YOUR BUSINESS -->
+<div class="page" id="page-10">
+  <div class="page-eyebrow">Business Simulation</div>
+  <div class="page-title">Choose Your Business</div>
+  <div class="page-subtitle">You're about to run a company. Each choice puts you in a different market structure — with different challenges, different competitors, and different rules. Choose wisely.</div>
+
+  <div class="biz-grid" id="biz-grid">
+    <div class="biz-card" id="biz-0" onclick="selectBusiness(0)">
+      <div class="biz-emoji">🌾</div>
+      <div class="biz-structure">Perfect Competition</div>
+      <div class="biz-name">Sunrise Wheat Farm</div>
+      <div class="biz-desc">You grow and sell wheat on the commodity market. Your product is identical to thousands of competitors. You take the price the market gives you. Success depends on efficiency, timing, and smart decisions — not branding or pricing power.</div>
+    </div>
+    <div class="biz-card" id="biz-1" onclick="selectBusiness(1)">
+      <div class="biz-emoji">🌮</div>
+      <div class="biz-structure">Monopolistic Competition</div>
+      <div class="biz-name">Cruz's Tacos</div>
+      <div class="biz-desc">You open a taco restaurant in a mid-size city with 15 other taco spots. Your secret green salsa and loyal following give you an edge — but competitors can copy your ideas and new restaurants open every month.</div>
+    </div>
+    <div class="biz-card" id="biz-2" onclick="selectBusiness(2)">
+      <div class="biz-emoji">✈️</div>
+      <div class="biz-structure">Oligopoly</div>
+      <div class="biz-name">SkyBridge Airlines</div>
+      <div class="biz-desc">You operate a regional airline with two major competitors. Every decision you make — pricing, routes, loyalty programs — triggers an immediate response from rivals. Strategy and anticipation are everything.</div>
+    </div>
+    <div class="biz-card" id="biz-3" onclick="selectBusiness(3)">
+      <div class="biz-emoji">💧</div>
+      <div class="biz-structure">Monopoly</div>
+      <div class="biz-name">ClearFlow Water Co.</div>
+      <div class="biz-desc">You are the sole water utility in a small city. No competitors, captive customers, and full pricing power — but also heavy government scrutiny, public responsibility, and infrastructure obligations that never go away.</div>
+    </div>
+  </div>
+
+  <div class="btn-row no-print">
+    <button class="btn btn-secondary" onclick="goToPage(9)">← Back</button>
+    <button class="btn btn-primary" id="btn-start-sim" onclick="startBusinessSim()" disabled style="opacity:0.5;">Start Simulation →</button>
+  </div>
+</div>
+
+<!-- PAGE 11: BUSINESS SIMULATION -->
+<div class="page" id="page-11">
+  <div id="sim-content"></div>
+  <div class="btn-row no-print" id="sim-nav">
+    <button class="btn btn-secondary" onclick="goToPage(10)">← Back</button>
+  </div>
+</div>
+
+<!-- PAGE 12: SUMMARY QUIZ -->
+<div class="page" id="page-12">
+  <div class="page-eyebrow">Graded Assessment · 20 points</div>
+  <div class="page-title">Summary Quiz</div>
+  <div class="page-subtitle">10 questions covering all four market structures. 2 points each. You may use the comparison table and glossary in the sidebar.</div>
+
+  <div id="quiz-locked" class="locked-overlay" style="display:none;">
+    <div class="lock-icon">🔒</div>
+    <p style="margin-bottom:1.25rem;">Complete the following before the quiz unlocks:</p>
+    <div id="quiz-lock-checklist" style="text-align:left;display:inline-block;font-size:0.9rem;line-height:2;"></div>
+  </div>
+
+  <div id="quiz-content"></div>
+
+  <div class="btn-row no-print" id="quiz-nav" style="display:none;">
+    <button class="btn btn-secondary" onclick="goToPage(11)">← Back</button>
+    <button class="btn btn-primary" id="quiz-submit-btn" onclick="submitQuiz()" style="opacity:0.5;" disabled>Submit Answers →</button>
+  </div>
+  <div class="btn-row no-print" id="quiz-results-nav" style="display:none;">
+    <button class="btn btn-secondary" onclick="goToPage(11)">← Back</button>
+    <button class="btn btn-primary" onclick="goToPage(13)">View My Results →</button>
+  </div>
+</div>
+
+<!-- PAGE 13: RESULTS -->
+<div class="page" id="page-13">
+  <div class="page-eyebrow">Complete</div>
+  <div class="page-title">Your Results</div>
+
+  <div id="results-locked" class="locked-overlay" style="display:none;">
+    <div class="lock-icon">🔒</div>
+    <p>Complete the summary quiz to see your results.</p>
+  </div>
+
+  <div id="results-content" style="display:none;">
+    <div class="grade-card" id="grade-card">
+      <div class="grade-meta" id="grade-meta"></div>
+      <div class="grade-display">
+        <div class="grade-letter" id="grade-letter">—</div>
+        <div class="grade-score" id="grade-score">— / 100</div>
+      </div>
+    </div>
+
+    <h3 style="font-family:'Fraunces',serif;font-size:1.2rem;margin-bottom:1rem;">Score Breakdown</h3>
+    <table class="score-table" id="score-table"></table>
+
+    <div id="student-work"></div>
+
+    <div class="needs-improvement no-print" id="needs-improvement" style="display:none;">
+      <h3>⚠ Areas to Review</h3>
+      <div id="improve-links"></div>
+    </div>
+
+    <div class="ai-feedback no-print" id="ai-feedback">
+      <div class="ai-feedback-label">🤖 Personalized Feedback</div>
+      <p id="ai-feedback-text">Generating your personalized feedback...</p>
+    </div>
+
+    <div class="pdf-instructions">
+      <h3>📄 Export to PDF & Submit to Google Classroom</h3>
+      <ol>
+        <li>Click <strong>"Generate PDF"</strong> below</li>
+        <li>In the print dialog, set <strong>Destination</strong> to <strong>"Save as PDF"</strong></li>
+        <li>Make sure <strong>"Background graphics"</strong> is turned ON</li>
+        <li>Click <strong>Save</strong> — name the file: <em>LastName_FirstName_MarketStructures.pdf</em></li>
+        <li>Open your assignment in <strong>Google Classroom</strong></li>
+        <li>Click <strong>"Add or Create" → "File"</strong></li>
+        <li>Upload your saved PDF → Click <strong>"Turn In"</strong></li>
+      </ol>
+    </div>
+
+    <div class="btn-row no-print">
+      <button class="btn btn-secondary" onclick="goToPage(12)">← Back</button>
+      <button class="btn btn-primary" onclick="window.print()">🖨 Generate PDF</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════
+
+const NAV_PAGES = [
+  { id: 0, label: '🏠 Start Here' },
+  { id: 1, label: '📖 Introduction' },
+  { id: 2, label: '🔑 The 4 Characteristics' },
+  { id: 3, label: '🌾 Perfect Competition' },
+  { id: 4, label: '🌮 Monopolistic Competition' },
+  { id: 5, label: '✈️ Oligopoly' },
+  { id: 6, label: '💧 Monopoly' },
+  { id: 7, label: '📊 Side-by-Side Comparison' },
+  { id: 8, label: '🎯 Scenario Sorter' },
+  { id: 9, label: '🌍 Who Benefits?' },
+  { id: 10, label: '🏢 Choose Your Business' },
+  { id: 11, label: '🎮 Run Your Business' },
+  { id: 12, label: '📝 Summary Quiz' },
+  { id: 13, label: '🏆 Your Results' }
+];
+
+const GLOSSARY = [
+  { term: 'Price Taker', def: 'A firm that accepts the market price as given and cannot influence it.' },
+  { term: 'Price Maker', def: 'A firm with enough market power to set its own price.' },
+  { term: 'Commodity', def: 'A standardized product where all units are identical regardless of producer.' },
+  { term: 'Product Differentiation', def: 'Distinguishing a product from competitors through branding, quality, or features.' },
+  { term: 'Brand Loyalty', def: 'Consumer preference for a specific brand over competitors.' },
+  { term: 'Non-Price Competition', def: 'Competing through advertising, quality, or service rather than price.' },
+  { term: 'Interdependence', def: 'When firms must consider rivals\' reactions before making decisions.' },
+  { term: 'Collusion', def: 'Secret cooperation between firms to fix prices or divide markets.' },
+  { term: 'Cartel', def: 'A formal group of firms that coordinate pricing and output decisions.' },
+  { term: 'Price War', def: 'Competing firms repeatedly cut prices trying to undercut each other.' },
+  { term: 'Natural Monopoly', def: 'A monopoly that arises because infrastructure costs make competition impractical.' },
+  { term: 'Barriers to Entry', def: 'Obstacles that prevent new competitors from entering a market.' },
+  { term: 'Antitrust', def: 'Laws designed to prevent monopolies and promote competition.' },
+  { term: 'Long-Run Equilibrium', def: 'The state where firms earn zero economic profit in perfectly competitive markets.' },
+  { term: 'Economic Profit', def: 'Revenue minus all costs, including the opportunity cost of the owner\'s time and capital.' },
+  { term: 'Homogeneous', def: 'Identical in all ways — no quality differences between sellers\' products.' },
+  { term: 'Market Power', def: 'The ability of a firm to influence the price of its product.' },
+  { term: 'Regulation', def: 'Government rules controlling how a firm operates, especially in monopoly markets.' },
+  { term: 'Substitute Good', def: 'A product that can replace another — important in limiting monopoly power.' },
+  { term: 'Oligopoly', def: 'A market dominated by a small number of large firms.' }
+];
+
+const SCENARIOS = [
+  { q: 'A local tap water company is the only provider of water in the city. Residents have no alternative supplier.', answer: 2, options: ['Perfect Competition', 'Monopolistic Competition', 'Monopoly', 'Oligopoly'] },
+  { q: '500 soybean farms all sell their harvest at the Chicago Board of Trade at the same price set by the exchange.', answer: 0, options: ['Perfect Competition', 'Monopolistic Competition', 'Monopoly', 'Oligopoly'] },
+  { q: 'Pepsi watches every pricing decision Coca-Cola makes and responds within days. When Coke runs a promotion, Pepsi immediately matches it.', answer: 3, options: ['Perfect Competition', 'Monopolistic Competition', 'Monopoly', 'Oligopoly'] },
+  { q: 'A new taco restaurant opens downtown hoping to stand out from 20 other taco spots through a unique menu and a loyalty app.', answer: 1, options: ['Perfect Competition', 'Monopolistic Competition', 'Monopoly', 'Oligopoly'] },
+  { q: 'A pharmaceutical company holds a 20-year patent on a cancer drug. No other company can legally produce it.', answer: 2, options: ['Perfect Competition', 'Monopolistic Competition', 'Monopoly', 'Oligopoly'] },
+  { q: 'Three major wireless carriers — Verizon, AT&T, and T-Mobile — together control 98% of the U.S. mobile market.', answer: 3, options: ['Perfect Competition', 'Monopolistic Competition', 'Monopoly', 'Oligopoly'] },
+  { q: 'Thousands of individual gold miners sell gold at the world market price. No single miner can affect the price of gold.', answer: 0, options: ['Perfect Competition', 'Monopolistic Competition', 'Monopoly', 'Oligopoly'] },
+  { q: 'A hair salon distinguishes itself through atmosphere, stylist expertise, and a signature treatment — and charges slightly more than the salon next door.', answer: 1, options: ['Perfect Competition', 'Monopolistic Competition', 'Monopoly', 'Oligopoly'] }
+];
+
+const QUIZ_QUESTIONS = [
+  { q: 'Which market structure has the most sellers and the least price control for individual firms?', options: ['Monopoly', 'Oligopoly', 'Monopolistic Competition', 'Perfect Competition'], answer: 3 },
+  { q: 'A firm that can set its own price is called a ___', options: ['Price taker', 'Price maker', 'Commodity seller', 'Market follower'], answer: 1 },
+  { q: "Cruz's Tacos spends heavily on advertising and a loyalty app. This strategy is best described as ___", options: ['Collusion', 'Non-price competition', 'Price discrimination', 'Antitrust behavior'], answer: 1 },
+  { q: 'Which market structure is characterized by interdependence among a small number of dominant firms?', options: ['Perfect Competition', 'Monopolistic Competition', 'Oligopoly', 'Monopoly'], answer: 2 },
+  { q: 'A natural monopoly exists when ___', options: ['A government bans all competition', 'Infrastructure costs make having one provider more efficient than multiple', 'One company buys all its competitors', 'A patent prevents others from entering the market'], answer: 1 },
+  { q: 'In the long run, perfectly competitive firms earn ___ economic profit', options: ['Large positive', 'Moderate positive', 'Zero (normal profit)', 'Negative'], answer: 2 },
+  { q: 'High barriers to entry are a key feature of which market structure(s)?', options: ['Perfect Competition only', 'Monopolistic Competition only', 'Oligopoly and Monopoly', 'All four structures'], answer: 2 },
+  { q: 'Product differentiation is most strongly associated with which structure?', options: ['Perfect Competition', 'Monopolistic Competition', 'Oligopoly', 'Monopoly'], answer: 1 },
+  { q: 'Which market structure is generally considered worst for consumers?', options: ['Perfect Competition', 'Monopolistic Competition', 'Oligopoly', 'Monopoly'], answer: 3 },
+  { q: 'OPEC, the oil-producing nations\' alliance that coordinates oil output and pricing, is an example of a ___', options: ['Cartel in an oligopoly-like structure', 'Perfect competition agreement', 'Natural monopoly', 'Government antitrust action'], answer: 0 }
+];
+
+const BUSINESS_SIMS = [
+  // 0: Sunrise Wheat Farm (Perfect Competition)
+  {
+    name: 'Sunrise Wheat Farm', emoji: '🌾', structure: 'Perfect Competition',
+    decisions: [
+      { scenario: "Harvest time arrives. A competitor lowers their wheat price by $0.10/bushel — now below the market price. What do you do?",
+        options: ["Match their price exactly — stay competitive", "Undercut them by another $0.05 to steal their buyers", "Hold your price — the market will rebalance"],
+        best: 0, scores: [3,1,0],
+        consequences: ["✅ Correct thinking. In perfect competition, price is set by the market — you match it or lose buyers. Undercutting helps no one because all farmers eventually match, driving everyone's profit down. Holding above market price means zero sales — buyers just go elsewhere.", "⚠️ Undercutting sparks a race to the bottom. Your competitors match immediately, and now everyone earns less. In perfect competition, no one wins a price war — you all just hurt each other.", "❌ In perfect competition, holding above market price means zero sales. Buyers have hundreds of identical alternatives. You are a price taker — the market sets the price, not you."] },
+      { scenario: "A severe drought hits the region. Your yield will drop 40% this harvest. How do you respond?",
+        options: ["Buy crop insurance to offset the loss", "Expand acreage to compensate — plant more", "Sell early before prices drop further"],
+        best: 0, scores: [3,1,1],
+        consequences: ["✅ Crop insurance exists precisely for this situation. A 40% yield drop is catastrophic — insurance keeps you solvent. This is the rational risk-management strategy in a perfectly competitive market where you can't control price.", "⚠️ Expanding in a drought adds cost without guaranteeing yield. If other farms are also hit, supply drops and price rises — so you might break even. But it's a risky, costly bet.", "⚠️ Selling early makes sense only if you expect prices to fall. But drought reduces supply industrywide, which typically raises commodity prices — so selling early might mean leaving money on the table."] },
+      { scenario: "A new fertilizer doubles yield but costs $15,000 upfront. Neighboring farms are considering it too. What do you do?",
+        options: ["Adopt it early — gain a temporary cost advantage", "Wait to see if neighbors adopt it first", "Skip it — the cost is too high"],
+        best: 0, scores: [3,1,0],
+        consequences: ["✅ In perfect competition, technology is one of the few ways to get ahead temporarily. Early adopters earn above-normal profit until competitors adopt it too — which they will. First-mover advantage is brief but real.", "⚠️ Waiting means losing the temporary advantage. If all your competitors adopt the fertilizer, your cost structure becomes worse than theirs and you get squeezed out of the market.", "❌ Refusing cost-saving technology in a commodity market is a long-term trap. If competitors adopt it and lower their effective cost per bushel, they can survive price drops that would bankrupt you."] },
+      { scenario: "The commodity price drops 20% due to a bumper crop globally. Your revenue barely covers costs. What's your next move?",
+        options: ["Stay in the market — this is temporary", "Exit the market — sell the farm", "Diversify into other crops to reduce exposure"],
+        best: 0, scores: [3,1,2],
+        consequences: ["✅ Price drops in perfect competition are cyclical. Low prices push out marginal producers, reducing supply, which eventually drives price back up. Staying in (if you can survive the short run) is usually the right call for efficient farms.", "⚠️ Selling may make sense if you're among the least efficient producers. The market is signaling that some capacity must exit. But selling at a depressed price means you're likely leaving at the worst time.", "👍 Diversification reduces risk and exposure to single-commodity price swings. This is smart long-term farm management, though it doesn't solve the immediate revenue crisis."] },
+      { scenario: "A local agricultural co-op invites you to join. Members negotiate bulk input deals and share equipment. There's an annual fee.",
+        options: ["Join the co-op — collective bargaining lowers costs", "Negotiate your own deals independently", "Decline — you don't want to share resources"],
+        best: 0, scores: [3,1,0],
+        consequences: ["✅ Co-ops are one of the most effective tools available to perfectly competitive producers. They can't control output price, but they can lower input costs. Collective purchasing power reduces expenses and improves margins.", "⚠️ As a small commodity producer, your individual negotiating power is minimal. You'll likely pay more for inputs than co-op members. Independent negotiation works better for larger operations.", "❌ Declining the co-op keeps you isolated in a market where size and collective action matter. You pay more for inputs, reducing your already-thin margins."] },
+      { scenario: "A large food processor offers you a long-term supply contract at a fixed price — 5% below today's market price.",
+        options: ["Accept — price certainty reduces risk", "Negotiate for a better price before accepting", "Refuse — you'd rather sell at market price"],
+        best: 1, scores: [1,3,1],
+        consequences: ["⚠️ Accepting 5% below market gives you certainty but sacrifices income. If market prices rise (which they do), you're locked in below-market rates for years. Certainty has value, but not at 5% off.", "✅ Negotiating is the right call. The processor wants a reliable supply and may accept market price or a small discount. You give up nothing by asking. This is the only scenario in perfect competition where you have meaningful pricing leverage — use it.", "⚠️ Refusing gives you flexibility, but you lose the predictability of a long-term buyer. If market prices drop, you'll wish you had the contract. The market price option has more risk than it seems."] },
+      { scenario: "The government announces subsidies for sustainable farming practices. Applying takes 3 weeks of paperwork.",
+        options: ["Apply immediately — subsidies improve margins", "Ignore it — too much paperwork for an uncertain return", "Lobby with the co-op for higher subsidy rates first"],
+        best: 0, scores: [3,0,2],
+        consequences: ["✅ In a market with near-zero profit margins, subsidies can make the difference between survival and exit. Three weeks of paperwork for years of above-market support is an excellent trade. Every efficient farm should pursue available subsidies.", "❌ Ignoring available money is never the right business decision. Competitors who apply will have lower effective costs — and in perfect competition, cost advantages are everything.", "👍 Lobbying for better rates is good collective strategy, but it takes much longer than applying for what's currently available. Do both — apply now and lobby for more."] }
+    ]
+  },
+  // 1: Cruz's Tacos (Monopolistic Competition)
+  {
+    name: "Cruz's Tacos", emoji: '🌮', structure: 'Monopolistic Competition',
+    decisions: [
+      { scenario: "Three new taco restaurants open within two blocks. Foot traffic drops 20% in two weeks. How do you respond?",
+        options: ["Lower your prices to compete directly", "Improve your recipe and launch a limited-time signature dish", "Launch a loyalty app with points and rewards"],
+        best: 2, scores: [1,2,3],
+        consequences: ["⚠️ Lowering price is the least effective tool in monopolistic competition. Your competitors can match, and you erode your margins without building any lasting advantage. Price is not what makes you different.", "👍 A new signature dish creates buzz and differentiates you. It works in the short term and might attract new customers. But it's hard to sustain and easy to copy.", "✅ A loyalty app creates switching costs — customers who earn points will think twice before going to a competitor. This is textbook non-price competition: you're competing on relationship and habit, not price."] },
+      { scenario: "A food critic publishes a negative review saying your service was slow and the salsa was too spicy. It's going viral locally.",
+        options: ["Respond publicly — acknowledge the feedback and announce improvements", "Offer a 'redemption week' discount to get people back in", "Ignore it — loyal customers know better"],
+        best: 0, scores: [3,2,0],
+        consequences: ["✅ In monopolistic competition, brand reputation is a core asset. Responding professionally demonstrates accountability, shows potential customers you're responsive, and often generates positive press that outweighs the original review.", "👍 A discount week gets people back through the door, which helps. But it doesn't address the underlying reputation issue and trains customers to expect discounts when something goes wrong.", "❌ Ignoring a viral review lets the narrative be set by your critic. In a market with many substitutes, reputation damage drives customers directly to competitors. Brand loyalty in monopolistic competition is real but fragile."] },
+      { scenario: "Your landlord raises monthly rent by 30%, effective next quarter. This will cut your profit margin in half.",
+        options: ["Raise menu prices to compensate", "Find a new, cheaper location and relocate", "Absorb the cost and maintain prices to keep customers"],
+        best: 1, scores: [2,3,0],
+        consequences: ["👍 Raising prices partially works. You have some price-making ability as a differentiated firm. But a significant price jump risks losing price-sensitive customers to competitors who haven't raised prices.", "✅ Relocation is painful but strategically correct. A 30% rent increase isn't a one-time event — it's permanent. Finding affordable space maintains your margin structure long-term and may expose you to new customer segments.", "❌ Absorbing the cost is unsustainable. Half your profit margin gone means you're one bad month away from operating at a loss. This isn't kindness to customers — it's slow business suicide."] },
+      { scenario: "A larger restaurant chain offers to buy Cruz's Tacos for $400,000 — a fair valuation. You could start fresh or retire.",
+        options: ["Accept the offer — take the money", "Refuse — you built this, you're keeping it", "Use the offer as leverage to get a small business bank loan instead"],
+        best: 2, scores: [1,0,3],
+        consequences: ["⚠️ Selling at fair value isn't wrong, but you lose all future upside. Monopolistic competition rewards unique differentiation — Cruz's loyal customer base and brand are worth more than a one-time payout if the business grows.", "⚠️ Refusing without a plan is pure emotion. If the business has growth potential, that's fine — but you need capital to compete. Saying no and doing nothing changes nothing.", "✅ Brilliant. The acquisition offer proves Cruz's is worth $400K — use that valuation as collateral to secure growth financing. You keep ownership, gain capital, and signal to lenders that your business has verified market value."] },
+      { scenario: "You want to expand. Three options are available — which do you pursue?",
+        options: ["Open a second restaurant location across town", "Launch a catering service for offices and events", "Start a food truck for festivals and markets"],
+        best: 2, scores: [1,2,3],
+        consequences: ["⚠️ A second location doubles overhead immediately. Rent, staff, and equipment costs multiply before revenue follows. It's a high-risk bet that requires substantial capital and management bandwidth.", "👍 Catering generates reliable bulk revenue and low additional overhead. But it's a different business model that requires new skills and equipment, and doesn't build brand recognition the way visible retail does.", "✅ A food truck is low-cost, high-visibility expansion. It tests new markets, builds brand recognition, and generates revenue with minimal new overhead. It's exactly the kind of differentiation-through-experience move that works in monopolistic competition."] },
+      { scenario: "Your main tortilla supplier raises prices 25%. You have three options to handle the cost increase.",
+        options: ["Find a cheaper supplier and switch immediately", "Absorb the increase and protect your prices", "Pass the cost to customers by raising menu prices slightly"],
+        best: 0, scores: [3,0,2],
+        consequences: ["✅ Switching suppliers protects your margin without touching customer prices or product quality. Negotiating with alternatives is a basic cost-management responsibility. If the new supplier is reliable, there's no reason to stay with one charging 25% more.", "❌ Absorbing a 25% ingredient cost increase directly destroys margins. Tortillas are a core input — this isn't a minor expense. This path leads to quietly losing money for months.", "👍 A slight menu price increase is defensible if Cruz's has strong brand loyalty. Customers of a differentiated brand often accept modest price increases. But combined with other pressures, every price increase risks losing price-sensitive customers."] },
+      { scenario: "A competitor copies your signature green salsa recipe and advertises it as 'inspired by the original.' How do you respond?",
+        options: ["Consult a lawyer about trade secret protections", "Rebrand with an even more distinctive new recipe", "Double down on marketing — remind customers you're the original"],
+        best: 1, scores: [2,3,3],
+        consequences: ["👍 Legal protection is worth exploring, though trade secret cases for recipes are notoriously hard to win. It sends a signal but may be more expensive than it's worth for a small business.", "✅ This is the monopolistic competition playbook: when someone copies you, innovate ahead of them. A new, better dish maintains your lead and reinforces your identity as the original innovator. Imitation is a compliment — stay one step ahead.", "✅ Marketing your original status is powerful. 'The original since 2018' is a differentiation story. Brand authenticity matters in a crowded market. Combined with a new dish, this is a strong response."] }
+    ]
+  },
+  // 2: SkyBridge Airlines (Oligopoly)
+  {
+    name: 'SkyBridge Airlines', emoji: '✈️', structure: 'Oligopoly',
+    decisions: [
+      { scenario: "Your main competitor slashes fares by 25% on your most profitable route. What's your move?",
+        options: ["Match the fare cut immediately", "Hold your prices and compete on quality and service instead", "File a complaint with the DOT about predatory pricing"],
+        best: 1, scores: [1,3,2],
+        consequences: ["⚠️ Matching immediately triggers a price war. In oligopoly, a price war destroys everyone's margins — this is why interdependence is so critical. You might win market share temporarily but at the cost of profitability industrywide.", "✅ This is the strategic wisdom of oligopoly: don't start a war you can't win. Competing on quality, punctuality, loyalty rewards, and service allows you to hold your customer base without destroying margins. Some passengers will pay more for a better experience.", "👍 Filing with the DOT signals that you believe the pricing is predatory (below cost to drive you out). This is a legitimate and strategic move that buys time and puts legal pressure on a competitor, though outcomes are slow."] },
+      { scenario: "A global fuel price spike increases your operating costs by 18%. How do you handle it?",
+        options: ["Add a fuel surcharge to all tickets", "Absorb the cost and protect your ticket prices", "Cut your least profitable routes to reduce fuel exposure"],
+        best: 0, scores: [3,0,2],
+        consequences: ["✅ Fuel surcharges are standard practice across the airline oligopoly. Because all major carriers face the same cost spike, they all add surcharges simultaneously — no competitive disadvantage. Consumers pay, but the industry stays solvent.", "❌ Absorbing an 18% cost increase in an industry with razor-thin margins (aviation averages 2–5% net profit) is a path to losses. Every dollar you absorb is a dollar your competitor keeps.", "👍 Cutting unprofitable routes is smart operations management. But by itself it doesn't solve the margin problem on the routes you keep. Use this as a complement to the surcharge, not a substitute."] },
+      { scenario: "A smaller regional airline is struggling and approaches you about a merger. They serve routes that complement yours.",
+        options: ["Agree to a full merger — absorb their routes and assets", "Acquire their assets only — avoid taking on their liabilities", "Suggest a codeshare agreement instead of a merger"],
+        best: 1, scores: [1,3,2],
+        consequences: ["⚠️ Full merger brings routes and planes but also debts, labor contracts, and operational complexity. Airline mergers are notoriously difficult. You inherit their problems alongside their assets.", "✅ Acquiring only the assets (aircraft, routes, gates) without the liabilities is the cleanest outcome. You get the strategic value — expanded network — without the balance sheet risk. This requires legal work but maximizes upside.", "👍 A codeshare is low-risk but limited reward. You get access to their routes and vice versa, increasing network reach without capital expenditure. It's the conservative play that preserves flexibility."] },
+      { scenario: "Your largest competitor launches an aggressive loyalty program with double miles and elite status upgrades. How do you respond?",
+        options: ["Launch a superior loyalty program immediately", "Partner with a major hotel chain for joint loyalty rewards", "Ignore it — your core customers value price over points"],
+        best: 1, scores: [2,3,0],
+        consequences: ["👍 Matching with a better program works but requires significant IT, marketing, and partnership investment. You're also playing catch-up on their timeline, which cedes the narrative to them.", "✅ A hotel partnership creates a loyalty ecosystem your competitor can't easily replicate. Joint miles programs with hotel chains (like airline-hotel co-branded cards) create deep customer switching costs. This is interdependence used creatively — you're partnering with adjacent industries to outflank a direct rival.", "❌ In oligopoly, loyalty programs are a primary competitive battleground. Ignoring a rival's major loyalty launch cedes that entire customer segment to them. Frequent flyers are the most profitable passengers — letting your competitor capture them is costly."] },
+      { scenario: "Federal regulators open an investigation into whether SkyBridge and a competitor coordinated pricing on a popular route.",
+        options: ["Cooperate fully and transparently with investigators", "Hire lawyers to delay proceedings while you continue operations", "Settle quickly and quietly — pay the fine and move on"],
+        best: 0, scores: [3,0,2],
+        consequences: ["✅ Full cooperation is both ethically correct and strategically smart. If you did nothing wrong, transparency demonstrates it. If there were violations (even unintentional), cooperation typically results in significantly reduced penalties. Antitrust violations carry massive fines and reputational damage — cooperation is your best defense.", "❌ Delay tactics signal guilt and antagonize regulators. The DOJ and DOT have long memories. Airlines found to have stonewalled investigations face harsher outcomes. This approach might save short-term operations but creates a much worse long-term legal position.", "👍 A quick settlement ends the uncertainty and lets you move forward. But settling means admitting liability (or at least not contesting it), which can affect future proceedings and public trust. Use this only if violations actually occurred."] },
+      { scenario: "A new profitable route opens. Your main competitor already flies it, but traffic data suggests the market can support two carriers.",
+        options: ["Enter the route aggressively with competitive pricing", "Approach the competitor about a codeshare on the route", "Focus on a different route where there's no competition yet"],
+        best: 0, scores: [3,2,1],
+        consequences: ["✅ If the market can support two carriers, enter. Oligopoly doesn't mean avoiding competition — it means competing strategically. Entering with competitive pricing establishes your presence and builds route market share. Interdependence means they'll respond, but you can both be profitable.", "👍 Codesharing gives you access to the route with minimal capital investment. You avoid head-to-head competition and share revenue. It's the lower-risk, lower-reward option — appropriate if you lack the planes or gates to compete directly.", "⚠️ Avoiding competition entirely cedes profitable markets to rivals. In oligopoly, allowing a competitor to dominate a route unchallenged makes them stronger relative to you over time."] },
+      { scenario: "A recession hits. Air travel demand drops 30%. Your competitors are furloughing staff and cutting routes. What's your strategy?",
+        options: ["Furlough staff and cut routes — protect cash flow", "Take a government stabilization loan and maintain operations", "Accelerate expansion — buy planes at depressed prices while competitors shrink"],
+        best: 2, scores: [1,1,3],
+        consequences: ["⚠️ Cutting and furloughing protects short-term cash but cedes market position. When demand recovers, your competitors who maintained capacity will be better positioned to capture the rebound. Shrinking in a downturn often means permanently losing market share.", "👍 A government loan maintains operations and preserves workforce, which is valuable. Airlines took exactly this approach in 2020. The downside: debt costs money and restricts future flexibility.", "✅ Counter-cyclical investment is the boldest and historically most rewarding oligopoly strategy. Aircraft prices crash during recessions. Airlines that expand during downturns (Southwest did this repeatedly) emerge with superior fleets, routes, and market position when demand returns. High risk, high reward."] }
+    ]
+  },
+  // 3: ClearFlow Water Co. (Monopoly)
+  {
+    name: 'ClearFlow Water Co.', emoji: '💧', structure: 'Monopoly',
+    decisions: [
+      { scenario: "The city council proposes a rate cap limiting how much you can charge residential customers. Your current rates are already modest.",
+        options: ["Fight the cap — it limits your ability to invest in infrastructure", "Accept the cap — it's fair and builds public trust", "Propose a compromise: a cap with a built-in inflation adjustment"],
+        best: 2, scores: [1,1,3],
+        consequences: ["⚠️ Fighting the cap publicly positions ClearFlow as a company putting profits over public welfare — a terrible look for a utility monopoly. You may win legally, but you lose politically, making future regulation more aggressive.", "⚠️ Accepting the cap without protections is well-meaning but risky. If inflation rises or infrastructure needs grow, you'll be trapped below costs. Unqualified acceptance isn't good long-term management.", "✅ An inflation-adjusted cap is the professional solution. It demonstrates good faith (you're not fighting oversight) while ensuring you can actually fund the service. This is how well-managed regulated monopolies operate — cooperating with oversight while protecting operational viability."] },
+      { scenario: "Engineering assessments show that 40% of your water pipes need replacing within five years. The project will cost $12 million.",
+        options: ["Raise rates now to fund it — spread the cost over customers", "Apply for federal infrastructure grants before raising rates", "Delay the project — the pipes are still functional for now"],
+        best: 1, scores: [2,3,0],
+        consequences: ["👍 Rate increases are legitimate, but exhausting cheaper options first is better governance. Customers will ask why you raised rates without seeking available grant funding — and they'll be right to ask.", "✅ Federal infrastructure grants exist specifically for water utilities. Applying costs time but could fund 30–50% of the project at no cost to ratepayers. This is fiduciary responsibility: minimize customer cost impact before raising rates.", "❌ Delaying critical infrastructure in a monopoly utility is not just a business risk — it's a public safety and legal risk. Pipe failures lead to contamination, service outages, and massive emergency repair costs. You have no competition to worry about, but you do have regulatory and legal exposure."] },
+      { scenario: "A startup announces it will deliver bulk bottled water in your city at prices comparable to tap water. Local media covers it as a 'ClearFlow alternative.'",
+        options: ["Lobby regulators to require the startup to meet the same standards you do", "Improve your service quality and add a water quality transparency report", "Ignore it — bottled water can't replace tap water infrastructure"],
+        best: 1, scores: [2,3,1],
+        consequences: ["👍 Regulatory lobbying ensures a level playing field — if you must meet strict EPA standards and pay for infrastructure, competitors shouldn't get a free pass. This is legitimate competitive policy. But it can look like using government power to crush a small competitor.", "✅ Responding with transparency and quality improvements demonstrates that ClearFlow's monopoly position is earned through reliability and accountability — not just legal exclusivity. A public water quality report builds trust and preempts the narrative that ClearFlow doesn't care about its customers.", "⚠️ The startup probably can't replace infrastructure. But ignoring the narrative lets them define the story. 'ClearFlow alternative' in local media shapes public opinion about your monopoly — which affects your relationship with regulators and city council."] },
+      { scenario: "A historic drought forces mandatory water rationing. You must reduce citywide consumption by 20%. How do you implement it?",
+        options: ["Enforce equal rationing across all customer categories", "Charge premium rates for usage above the conservation limit", "Invest immediately in emergency supply expansion — desalination or new wells"],
+        best: 1, scores: [1,3,2],
+        consequences: ["⚠️ Equal rationing sounds fair but doesn't reduce total usage efficiently. A hospital and a lawn have very different water needs. Flat rationing may cause the wrong kind of hardship while not achieving conservation goals.", "✅ Tiered pricing — normal rates below the limit, premium rates above — lets high-value users (hospitals, businesses) maintain critical operations while creating a strong financial incentive for all users to conserve. This is the economically efficient and practically effective approach, used by utilities across the American West.", "👍 Long-term supply investment is the right strategic move, but it takes years to implement and doesn't solve the immediate shortage. Begin the process, but you also need a near-term conservation mechanism."] },
+      { scenario: "An investigative reporter finds that your water quality test results have been below EPA compliance thresholds in two neighborhoods for six months. The story publishes tomorrow.",
+        options: ["Issue a proactive statement tonight, announce corrective action, and notify affected residents", "Wait for the story to publish, then respond with your legal team's guidance", "Quietly accelerate the fix without public comment"],
+        best: 0, scores: [3,0,0],
+        consequences: ["✅ There is no scenario in which a water utility should delay responding to a public health issue. Getting ahead of the story, acknowledging the problem, and announcing concrete action is the only responsible path — ethically, legally, and reputationally. Utilities that respond quickly to compliance failures typically retain public trust. Those that don't face regulatory sanctions and lose their operating licenses.", "❌ Waiting for the story means your first public statement is a reaction, not an action. The reporter — not you — controls the narrative. For a public utility serving a captive population, this is reputational and regulatory catastrophe.", "❌ Quiet fixes without disclosure may violate EPA notification requirements (utilities are legally required to notify customers of certain violations). This path exposes ClearFlow to regulatory sanctions, civil suits, and complete loss of public trust when the cover-up is discovered — and it will be."] },
+      { scenario: "The city government offers to purchase ClearFlow's infrastructure and convert the water system to a publicly-owned utility.",
+        options: ["Sell at a premium price — take the exit", "Refuse and invest in modernizing to demonstrate private-sector efficiency", "Negotiate a public-private partnership — city owns infrastructure, you operate it"],
+        best: 2, scores: [1,2,3],
+        consequences: ["⚠️ Selling at a premium is a valid outcome for shareholders. But you give up a stable, regulated revenue stream with monopoly protection. Private water utilities, when well-run, generate consistent long-term returns. Exiting may be premature.", "👍 Modernizing to demonstrate private-sector efficiency is the right instinct. Showcasing what private management achieves — better infrastructure investment, lower cost per gallon, faster response times — makes the case against municipalization with data.", "✅ A public-private partnership captures the best of both worlds. The city gets public ownership of critical infrastructure (which addresses political pressure), while ClearFlow retains the operating contract (stable revenue) without infrastructure ownership risk. This is how most major airports, transit systems, and utilities are managed globally."] },
+      { scenario: "Your engineers discover a new groundwater source that would cut your water acquisition costs by 40%. This is a major windfall.",
+        options: ["Pass the savings to customers through lower rates", "Retain the savings as increased profit for shareholders", "Reinvest the savings in infrastructure upgrades and expansion"],
+        best: 2, scores: [2,0,3],
+        consequences: ["👍 Passing savings to customers is politically and ethically good — it demonstrates that monopoly power isn't being abused. But a one-time rate cut may be less valuable than long-term infrastructure investment that improves service quality for decades.", "❌ Retaining all savings as profit in a regulated monopoly utility is the fastest path to a regulatory investigation and mandated rate reduction. Regulators are watching. A 40% cost reduction that doesn't benefit ratepayers will trigger a rate review.", "✅ Reinvesting in infrastructure — replacing aging pipes, expanding capacity, improving water quality systems — creates durable value for customers, reduces future emergency costs, and demonstrates to regulators that ClearFlow is a responsible steward of a public resource. This is the long-term correct answer."] }
+    ]
+  }
+];
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+
+let S = {
+  currentPage: 0,
+  studentName: '', teacherName: '', classPeriod: '',
+  pagesVisited: new Set([0]),
+  shortAnswers: { 'p3': '', 'p4': '', 'p5': '', 'p6': '', 'p9': '' },
+  confidence: { 'p3': 0, 'p4': 0, 'p5': 0, 'p6': 0, 'p9': 0 },
+  saScores: { 'p3': null, 'p4': null, 'p5': null, 'p6': null, 'p9': null },
+  scenarioAnswers: {},
+  quizAnswers: {},
+  selectedBusiness: null,
+  simDecisions: {},
+  simStep: 0,
+  isGrading: false,
+  gradingComplete: false,
+  quizSubmitted: false,
+  simReflection: '',
+  simReflectionScore: null,
+  lastSaved: null
+};
+
+// ═══════════════════════════════════════════════════════
+// CONFIGURATION — paste your Anthropic API key below
+// ═══════════════════════════════════════════════════════
+const ANTHROPIC_API_KEY = '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';
+
+let autosaveTimer = null;
+const SAVE_KEY = 'marketStructuresSim_v2';
+const TEACHER_MODE = new URLSearchParams(window.location.search).get('teacher') === 'true';
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+
+function init() {
+  if (TEACHER_MODE) document.body.classList.add('teacher-mode');
+
+  buildNav();
+  buildGlossary();
+  buildScenarios();
+  buildQuiz();
+  checkResume();
+  updateProgress();
+}
+
+function buildNav() {
+  const container = document.getElementById('nav-items');
+  NAV_PAGES.forEach(p => {
+    const el = document.createElement('div');
+    // Pages 0-2 are always accessible; 3-11 unlock as visited; 12-13 unlock when quiz criteria met
+    const locked = p.id >= 3 && !S.pagesVisited.has(p.id) && !(p.id <= 12);
+    el.className = 'nav-item' + (p.id === 0 ? ' active' : '') + (p.id > 11 ? ' locked' : '');
+    el.id = 'nav-' + p.id;
+    el.innerHTML = `<span>${p.label}</span><span class="nav-check">✓</span>`;
+    el.onclick = () => { if (!el.classList.contains('locked')) goToPage(p.id); };
+    container.appendChild(el);
+  });
+}
+
+function buildGlossary() {
+  const body = document.getElementById('glossary-body');
+  GLOSSARY.forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'gloss-term';
+    div.innerHTML = `<strong>${g.term}</strong><span>${g.def}</span>`;
+    body.appendChild(div);
+  });
+}
+
+function toggleGlossary() {
+  const body = document.getElementById('glossary-body');
+  const arrow = document.getElementById('gloss-arrow');
+  body.classList.toggle('open');
+  arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+
+function buildScenarios() {
+  const container = document.getElementById('scenario-questions');
+  SCENARIOS.forEach((s, i) => {
+    const div = document.createElement('div');
+    div.className = 'mc-question';
+    div.innerHTML = `
+      <div class="mc-q-num">Scenario ${i + 1} of ${SCENARIOS.length} · 5 points</div>
+      <div class="mc-q-text">${s.q}</div>
+      <div class="mc-options" id="scenario-opts-${i}">
+        ${s.options.map((o, j) => `
+          <div class="mc-option" id="sc-opt-${i}-${j}" onclick="selectScenario(${i},${j})">
+            <div class="mc-letter">${String.fromCharCode(65+j)}</div>
+            <span>${o}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="teacher-answer">✅ Correct: ${s.options[s.answer]}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function buildQuiz() {
+  const container = document.getElementById('quiz-content');
+  QUIZ_QUESTIONS.forEach((q, i) => {
+    const div = document.createElement('div');
+    div.className = 'mc-question';
+    div.innerHTML = `
+      <div class="mc-q-num">Question ${i + 1} of ${QUIZ_QUESTIONS.length} · 2 points</div>
+      <div class="mc-q-text">${q.q}</div>
+      <div class="mc-options" id="quiz-opts-${i}">
+        ${q.options.map((o, j) => `
+          <div class="mc-option" id="quiz-opt-${i}-${j}" onclick="selectQuiz(${i},${j})">
+            <div class="mc-letter">${String.fromCharCode(65+j)}</div>
+            <span>${o}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="teacher-answer">✅ Correct: ${q.options[q.answer]}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+
+function goToPage(id) {
+  showPage(id);
+  S.currentPage = id;
+  S.pagesVisited.add(id);
+
+  // Update nav — mark current active, previous completed
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const activeNav = document.getElementById('nav-' + id);
+  if (activeNav) { activeNav.classList.add('active'); activeNav.classList.remove('locked'); }
+  if (id > 0) {
+    const prevNav = document.getElementById('nav-' + (id - 1));
+    if (prevNav) prevNav.classList.add('completed');
+  }
+
+  updateProgress();
+  window.scrollTo(0, 0);
+  autosave();
+
+  // Special page logic
+  if (id === 12) renderQuizPage();
+  if (id === 13) renderResultsPage();
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+}
+
+function isQuizUnlocked() {
+  const requiredPages = [1,2,3,4,5,6,7,8,9,10,11];
+  return requiredPages.every(p => S.pagesVisited.has(p)) &&
+    Object.values(S.shortAnswers).every(a => a.trim().length > 0) &&
+    Object.keys(S.scenarioAnswers).length >= 8 &&
+    S.selectedBusiness !== null &&
+    S.simReflection.trim().length > 0;
+}
+
+function isResultsUnlocked() {
+  return isQuizUnlocked() && S.quizSubmitted;
+}
+
+function updateProgress() {
+  const total = 13;
+  const visited = S.pagesVisited.size;
+  const pct = Math.round((visited / total) * 100);
+  document.getElementById('progress-bar-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+  document.getElementById('topbar-title').innerHTML =
+    (NAV_PAGES[S.currentPage]?.label || '') +
+    (TEACHER_MODE ? ' <span class="teacher-badge">Teacher Mode</span>' : '');
+
+  // Unlock quiz and results when ready
+  if (isQuizUnlocked()) {
+    const qNav = document.getElementById('nav-12');
+    if (qNav) qNav.classList.remove('locked');
+  }
+  if (isResultsUnlocked()) {
+    const rNav = document.getElementById('nav-13');
+    if (rNav) rNav.classList.remove('locked');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// COVER / START
+// ═══════════════════════════════════════════════════════
+
+function startSim() {
+  const name = document.getElementById('student-name').value.trim();
+  const teacher = document.getElementById('teacher-name').value.trim();
+  const period = document.getElementById('class-period').value.trim();
+  if (!name) { alert('Please enter your name to begin.'); return; }
+  S.studentName = name;
+  S.teacherName = teacher;
+  S.classPeriod = period;
+  autosave();
+  goToPage(1);
+}
+
+function checkResume() {
+  try {
+    const saved = localStorage.getItem(SAVE_KEY);
+    if (saved) {
+      const data = JSON.parse(saved);
+      if (data.studentName) {
+        document.getElementById('student-name').value = data.studentName;
+        document.getElementById('teacher-name').value = data.teacherName || '';
+        document.getElementById('class-period').value = data.classPeriod || '';
+        document.getElementById('resume-banner').style.display = 'block';
+        window._savedData = data;
+      }
+    }
+  } catch(e) {}
+}
+
+function resumeSession() {
+  const data = window._savedData;
+  if (!data) return;
+  Object.assign(S, {
+    studentName: data.studentName || '',
+    teacherName: data.teacherName || '',
+    classPeriod: data.classPeriod || '',
+    shortAnswers: data.shortAnswers || S.shortAnswers,
+    confidence: data.confidence || S.confidence,
+    saScores: data.saScores || S.saScores,
+    scenarioAnswers: data.scenarioAnswers || {},
+    quizAnswers: data.quizAnswers || {},
+    selectedBusiness: data.selectedBusiness ?? null,
+    simDecisions: data.simDecisions || {},
+    simStep: data.simStep || 0,
+    pagesVisited: new Set(data.pagesVisited || [0]),
+    gradingComplete: data.gradingComplete || false,
+    quizSubmitted: data.quizSubmitted || false,
+    simReflection: data.simReflection || '',
+    simReflectionScore: data.simReflectionScore ?? null
+  });
+
+  // Restore short answers
+  Object.entries(S.shortAnswers).forEach(([k, v]) => {
+    const el = document.getElementById('sa-' + k);
+    if (el) el.value = v;
+  });
+
+  // Restore confidence
+  Object.entries(S.confidence).forEach(([k, v]) => {
+    if (v) setConfidence(k, v, true);
+  });
+
+  // Restore scenario answers
+  Object.entries(S.scenarioAnswers).forEach(([i, j]) => {
+    markScenario(parseInt(i), parseInt(j));
+  });
+
+  // Restore quiz answers
+  Object.entries(S.quizAnswers).forEach(([i, j]) => {
+    markQuiz(parseInt(i), parseInt(j));
+  });
+
+  updateProgress();
+  goToPage(data.currentPage || 1);
+}
+
+function clearResume() {
+  localStorage.removeItem(SAVE_KEY);
+  document.getElementById('resume-banner').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════
+// AUTOSAVE
+// ═══════════════════════════════════════════════════════
+
+function autosave() {
+  // Collect current textarea values
+  Object.keys(S.shortAnswers).forEach(k => {
+    const el = document.getElementById('sa-' + k);
+    if (el) S.shortAnswers[k] = el.value;
+  });
+
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    try {
+      const data = {
+        ...S,
+        pagesVisited: [...S.pagesVisited],
+        savedAt: new Date().toISOString()
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      const ind = document.getElementById('autosave-indicator');
+      ind.textContent = '● Saved';
+      ind.style.color = 'rgba(255,255,255,0.5)';
+      S.lastSaved = new Date();
+    } catch(e) {
+      document.getElementById('autosave-indicator').textContent = '⚠ Save failed';
+    }
+  }, 1200);
+}
+
+// ═══════════════════════════════════════════════════════
+// INTERACTIONS
+// ═══════════════════════════════════════════════════════
+
+function setConfidence(page, level, silent) {
+  S.confidence[page] = level;
+  [1,2,3].forEach(l => {
+    const btn = document.getElementById(`conf-${page}-${l}`);
+    if (btn) { btn.className = 'conf-btn' + (l === level ? ` selected-${l}` : ''); }
+  });
+  if (!silent) autosave();
+}
+
+function selectScenario(qIdx, optIdx) {
+  S.scenarioAnswers[qIdx] = optIdx;
+  markScenario(qIdx, optIdx);
+  autosave();
+}
+
+function markScenario(qIdx, optIdx) {
+  const s = SCENARIOS[qIdx];
+  for (let j = 0; j < s.options.length; j++) {
+    const el = document.getElementById(`sc-opt-${qIdx}-${j}`);
+    if (!el) continue;
+    el.className = 'mc-option';
+    if (j === optIdx) {
+      el.classList.add(TEACHER_MODE ? (j === s.answer ? 'correct' : 'wrong') : 'selected');
+    }
+  }
+}
+
+function selectQuiz(qIdx, optIdx) {
+  if (S.quizSubmitted) return; // lock answers after submission
+  S.quizAnswers[qIdx] = optIdx;
+  markQuiz(qIdx, optIdx);
+  checkQuizComplete();
+  autosave();
+}
+
+function markQuiz(qIdx, optIdx) {
+  const q = QUIZ_QUESTIONS[qIdx];
+  for (let j = 0; j < q.options.length; j++) {
+    const el = document.getElementById(`quiz-opt-${qIdx}-${j}`);
+    if (!el) continue;
+    el.className = 'mc-option';
+    if (j === optIdx) el.classList.add('selected');
+  }
+}
+
+function selectBusiness(idx) {
+  S.selectedBusiness = idx;
+  document.querySelectorAll('.biz-card').forEach((c, i) => {
+    c.classList.toggle('selected', i === idx);
+  });
+  const btn = document.getElementById('btn-start-sim');
+  btn.disabled = false;
+  btn.style.opacity = '1';
+  autosave();
+}
+
+// ═══════════════════════════════════════════════════════
+// BUSINESS SIMULATION
+// ═══════════════════════════════════════════════════════
+
+function startBusinessSim() {
+  if (S.selectedBusiness === null) return;
+  S.simStep = 0;
+  goToPage(11);
+  renderSimStep();
+}
+
+function renderSimStep() {
+  const biz = BUSINESS_SIMS[S.selectedBusiness];
+  const step = S.simStep;
+  const container = document.getElementById('sim-content');
+
+  if (step >= biz.decisions.length) {
+    renderSimComplete(biz);
+    return;
+  }
+
+  const dec = biz.decisions[step];
+  const chosen = S.simDecisions[step];
+
+  container.innerHTML = `
+    <div class="page-eyebrow">Business Simulation · ${biz.emoji} ${biz.name}</div>
+    <div class="page-title" style="font-size:1.4rem;">${biz.structure} — Decision ${step + 1} of ${biz.decisions.length}</div>
+
+    <div style="background:var(--surface2);border-radius:8px;padding:0.5rem 1rem;margin-bottom:1.5rem;display:flex;gap:0.5rem;align-items:center;">
+      ${biz.decisions.map((_, i) => `<div style="width:28px;height:6px;border-radius:3px;background:${i < step ? 'var(--accent)' : i === step ? 'var(--accent2)' : 'var(--border)'};"></div>`).join('')}
+    </div>
+
+    <div class="sim-header">
+      <div class="sim-round-label">Situation</div>
+      <div class="sim-scenario">${dec.scenario}</div>
+    </div>
+
+    <div class="sim-options">
+      ${dec.options.map((o, j) => `
+        <div class="sim-option ${chosen === j ? 'selected' : ''}" id="sim-opt-${j}" onclick="chooseSimOption(${j})">
+          <div class="sim-opt-letter">${String.fromCharCode(65+j)}</div>
+          <div class="sim-opt-text">${o}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="consequence-box ${chosen !== undefined ? 'show' : ''}" id="consequence-box">
+      ${chosen !== undefined ? `<div class="consequence-label">What happened</div><p>${dec.consequences[chosen]}</p>` : ''}
+    </div>
+
+    <div style="margin-top:1.5rem;display:flex;justify-content:flex-end;">
+      <button class="btn btn-primary" id="sim-next-btn"
+        onclick="simNext()"
+        ${chosen === undefined ? 'disabled style="opacity:0.4;"' : ''}>
+        ${step < biz.decisions.length - 1 ? 'Next Decision →' : 'Finish Simulation →'}
+      </button>
+    </div>
+  `;
+}
+
+function chooseSimOption(j) {
+  S.simDecisions[S.simStep] = j;
+  const dec = BUSINESS_SIMS[S.selectedBusiness].decisions[S.simStep];
+  document.querySelectorAll('.sim-option').forEach((el, i) => {
+    el.classList.toggle('selected', i === j);
+  });
+  const box = document.getElementById('consequence-box');
+  box.innerHTML = `<div class="consequence-label">What happened</div><p>${dec.consequences[j]}</p>`;
+  box.classList.add('show');
+  document.getElementById('sim-next-btn').disabled = false;
+  document.getElementById('sim-next-btn').style.opacity = '1';
+  autosave();
+}
+
+function simNext() {
+  const biz = BUSINESS_SIMS[S.selectedBusiness];
+  if (S.simStep < biz.decisions.length - 1) {
+    S.simStep++;
+    renderSimStep();
+    window.scrollTo(0, 0);
+  } else {
+    renderSimComplete(biz);
+  }
+}
+
+function renderSimComplete(biz) {
+  const container = document.getElementById('sim-content');
+  const decisions = biz.decisions;
+  let summary = '';
+  decisions.forEach((d, i) => {
+    const chosen = S.simDecisions[i];
+    const score = chosen !== undefined ? d.scores[chosen] : 0;
+    const emoji = score === 3 ? '✅' : score >= 1 ? '⚠️' : '❌';
+    summary += `<div style="padding:0.75rem 0;border-bottom:1px solid var(--border);">
+      <div style="font-size:0.78rem;color:var(--ink3);margin-bottom:0.3rem;">Decision ${i+1}</div>
+      <div style="font-size:0.88rem;font-weight:500;">${emoji} ${d.options[chosen !== undefined ? chosen : 0]}</div>
+    </div>`;
+  });
+
+  container.innerHTML = `
+    <div class="page-eyebrow">Simulation Complete</div>
+    <div class="page-title">${biz.emoji} ${biz.name} — Summary</div>
+    <p class="page-subtitle">Here's how your decisions played out. Complete the reflection below before moving on.</p>
+    <div class="content-card"><h3>Your Decisions</h3>${summary}</div>
+    <div class="dyk-box">
+      <div class="dyk-label">🎯 Key Takeaway</div>
+      <p>In <strong>${biz.structure}</strong>, every decision reflects the unique constraints of that market. ${
+        S.selectedBusiness === 0 ? 'As a price taker, your power comes from cost efficiency and risk management — not pricing or branding.' :
+        S.selectedBusiness === 1 ? 'In monopolistic competition, your identity and brand are your competitive moat. Innovation and customer loyalty matter more than price.' :
+        S.selectedBusiness === 2 ? 'In oligopoly, anticipating your rivals is as important as your own strategy. Every move triggers a counter-move.' :
+        'As a regulated monopoly, your decisions balance profit with public responsibility — the government is always watching.'
+      }</p>
+    </div>
+
+    <div class="sa-block">
+      <div class="sa-label">📝 Simulation Reflection — 10 points</div>
+      <div class="sa-question">Reflect on your experience running <strong>${biz.name}</strong>. What did you learn about how <strong>${biz.structure}</strong> works in practice? Describe at least one decision that surprised you or changed how you think about this market structure. Use at least two vocabulary terms from the simulation.</div>
+      <textarea class="sa-textarea" id="sa-sim-reflection" placeholder="Write your reflection here (4–6 sentences)..." style="min-height:130px;" oninput="saveSimReflection()">${S.simReflection || ''}</textarea>
+      <div class="confidence-row">
+        <span class="confidence-label">How confident are you in this answer?</span>
+        <button class="conf-btn" id="conf-ref-1" onclick="setConfidence('ref', 1)">🔴 Not sure</button>
+        <button class="conf-btn" id="conf-ref-2" onclick="setConfidence('ref', 2)">🟡 Pretty sure</button>
+        <button class="conf-btn" id="conf-ref-3" onclick="setConfidence('ref', 3)">🟢 Confident</button>
+      </div>
+    </div>
+  `;
+
+  // Restore confidence button state if already set
+  if (S.confidence['ref']) setConfidence('ref', S.confidence['ref'], true);
+
+  const navEl = document.getElementById('sim-nav');
+  navEl.innerHTML = `
+    <button class="btn btn-secondary" onclick="goToPage(10)">← Choose Different Business</button>
+    <button class="btn btn-primary" id="sim-continue-btn" onclick="goToPage(12)" ${S.simReflection.trim().length === 0 ? 'disabled style="opacity:0.5;"' : ''}>Continue to Summary Quiz →</button>
+  `;
+
+  S.pagesVisited.add(11);
+  updateProgress();
+  autosave();
+}
+
+function saveSimReflection() {
+  const el = document.getElementById('sa-sim-reflection');
+  if (!el) return;
+  S.simReflection = el.value;
+  // Enable/disable the continue button
+  const btn = document.getElementById('sim-continue-btn');
+  if (btn) {
+    const hasContent = S.simReflection.trim().length > 0;
+    btn.disabled = !hasContent;
+    btn.style.opacity = hasContent ? '1' : '0.5';
+  }
+  autosave();
+}
+
+// ═══════════════════════════════════════════════════════
+// QUIZ PAGE RENDER
+// ═══════════════════════════════════════════════════════
+
+function renderQuizPage() {
+  if (!isQuizUnlocked()) {
+    document.getElementById('quiz-locked').style.display = 'block';
+    document.getElementById('quiz-content').style.display = 'none';
+    document.getElementById('quiz-nav').style.display = 'none';
+    document.getElementById('quiz-results-nav').style.display = 'none';
+
+    // Build specific checklist of what's still missing
+    const items = [];
+    const pageNames = {1:'Introduction',2:'The 4 Characteristics',3:'Perfect Competition',4:'Monopolistic Competition',5:'Oligopoly',6:'Monopoly',7:'Comparison Table',8:'Scenario Sorter',9:'Who Benefits?',10:'Choose Your Business',11:'Run Your Business'};
+    [1,2,3,4,5,6,7,8,9,10,11].forEach(p => {
+      if (!S.pagesVisited.has(p)) items.push(`❌ Visit page: ${pageNames[p]}`);
+    });
+    const saLabels = {p3:'Perfect Competition short answer',p4:'Monopolistic Competition short answer',p5:'Oligopoly short answer',p6:'Monopoly short answer',p9:'Who Benefits short answer'};
+    Object.entries(saLabels).forEach(([k, label]) => {
+      if (!S.shortAnswers[k] || S.shortAnswers[k].trim().length === 0) items.push(`❌ Write: ${label}`);
+    });
+    const scenarioDone = Object.keys(S.scenarioAnswers).length;
+    if (scenarioDone < 8) items.push(`❌ Scenario Sorter: answer all 8 (${scenarioDone}/8 done)`);
+    if (S.selectedBusiness === null) items.push('❌ Choose a business on page 10');
+    if (!S.simReflection || S.simReflection.trim().length === 0) items.push('❌ Write the simulation reflection on page 11');
+
+    const cl = document.getElementById('quiz-lock-checklist');
+    if (cl) cl.innerHTML = items.length === 0
+      ? '<span style="color:var(--accent)">✅ All done — refreshing...</span>'
+      : items.map(i => `<div>${i}</div>`).join('');
+
+    // If somehow all done but still locked, force re-check
+    if (items.length === 0) setTimeout(() => renderQuizPage(), 300);
+    return;
+  }
+  document.getElementById('quiz-locked').style.display = 'none';
+  document.getElementById('quiz-content').style.display = 'block';
+
+  // Re-mark any saved answers
+  Object.entries(S.quizAnswers).forEach(([i, j]) => markQuiz(parseInt(i), parseInt(j)));
+
+  // Show appropriate nav
+  if (S.quizSubmitted) {
+    document.getElementById('quiz-nav').style.display = 'none';
+    document.getElementById('quiz-results-nav').style.display = 'flex';
+  } else {
+    document.getElementById('quiz-nav').style.display = 'flex';
+    document.getElementById('quiz-results-nav').style.display = 'none';
+    checkQuizComplete();
+  }
+}
+
+function checkQuizComplete() {
+  const answeredCount = Object.keys(S.quizAnswers).length;
+  const btn = document.getElementById('quiz-submit-btn');
+  if (!btn) return;
+  const allAnswered = answeredCount >= QUIZ_QUESTIONS.length;
+  btn.disabled = !allAnswered;
+  btn.style.opacity = allAnswered ? '1' : '0.5';
+}
+
+function submitQuiz() {
+  S.quizSubmitted = true;
+  // Reveal correct/wrong answers
+  QUIZ_QUESTIONS.forEach((q, i) => {
+    const chosen = S.quizAnswers[i];
+    for (let j = 0; j < q.options.length; j++) {
+      const el = document.getElementById(`quiz-opt-${i}-${j}`);
+      if (!el) continue;
+      el.className = 'mc-option';
+      if (j === q.answer) el.classList.add('correct');
+      else if (j === chosen && j !== q.answer) el.classList.add('wrong');
+    }
+  });
+  document.getElementById('quiz-nav').style.display = 'none';
+  document.getElementById('quiz-results-nav').style.display = 'flex';
+  updateProgress();
+  autosave();
+  window.scrollTo(0, 0);
+}
+
+// ═══════════════════════════════════════════════════════
+// RESULTS PAGE
+// ═══════════════════════════════════════════════════════
+
+function renderResultsPage() {
+  if (!isResultsUnlocked()) {
+    document.getElementById('results-locked').style.display = 'block';
+    document.getElementById('results-content').style.display = 'none';
+    return;
+  }
+  document.getElementById('results-locked').style.display = 'none';
+  document.getElementById('results-content').style.display = 'block';
+
+  // Scores
+  let scenarioScore = 0;
+  SCENARIOS.forEach((s, i) => { if (S.scenarioAnswers[i] === s.answer) scenarioScore += 5; });
+
+  let quizScore = 0;
+  QUIZ_QUESTIONS.forEach((q, i) => { if (S.quizAnswers[i] === q.answer) quizScore += 2; });
+
+  // SA scores (use cached if available, else grade now)
+  const saKeys = ['p3','p4','p5','p6','p9'];
+  // Always re-grade locally — instant and accurate
+  if (!S.isGrading) {
+    gradeShortAnswers(scenarioScore, quizScore);
+  }
+}
+
+function gradeShortAnswers(scenarioScore, quizScore) {
+  S.isGrading = true;
+
+  if (ANTHROPIC_API_KEY && ANTHROPIC_API_KEY !== 'YOUR_API_KEY_HERE') {
+    gradeWithAPI(scenarioScore, quizScore);
+  } else {
+    gradeWithKeywords(scenarioScore, quizScore);
+  }
+}
+
+async function gradeWithAPI(scenarioScore, quizScore) {
+  const saKeys = ['p3','p4','p5','p6','p9'];
+  const questions = {
+    p3: 'A wheat farmer is considering charging $0.25 more per bushel than the market price. Explain why this would or would not work using perfect competition vocabulary.',
+    p4: "Cruz's Tacos and three competitors sell tacos at similar prices. Why does Cruz's still spend money on advertising and a loyalty app?",
+    p5: 'When one major airline drops prices, others match within hours. Explain why using oligopoly vocabulary.',
+    p6: 'ClearFlow is the only water provider. Explain why the government might regulate how much ClearFlow can charge.',
+    p9: 'Which market structure is best for consumers and which is worst? Use evidence from the simulation.'
+  };
+  const bizName = BUSINESS_SIMS[S.selectedBusiness]?.name || 'their business';
+  const bizStructure = BUSINESS_SIMS[S.selectedBusiness]?.structure || 'their market structure';
+
+  const rubric = `Score each short answer 0-8:
+8: Correct concept, uses vocabulary from the lesson, clear explanation
+6: Correct concept but vague, missing key vocab
+4: Partially correct, misses key idea
+2: Attempted but mostly incorrect
+0: Blank or off-topic
+
+Score the simulation reflection 0-10:
+10: Specific insight about the market structure, uses 2+ vocab terms, reflects on a decision, shows genuine understanding
+8: Good reflection, uses vocab, but insight is surface-level
+6: Some relevant content but thin on vocab or specifics
+4: Attempted but vague or mostly restates facts
+2: Minimal effort
+0: Blank or off-topic
+
+Reply with ONLY a JSON object like: {"p3":7,"p4":6,"p5":8,"p6":5,"p9":7,"ref":9}`;
+
+  const answersText = saKeys.map(k =>
+    `${k} - Question: ${questions[k]}\nAnswer: ${S.shortAnswers[k] || '(blank)'}`
+  ).join('\n\n') + `\n\nref - Simulation Reflection for ${bizName} (${bizStructure}):\nAnswer: ${S.simReflection || '(blank)'}`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 200,
+        system: rubric,
+        messages: [{ role: 'user', content: answersText }]
+      })
+    });
+
+    if (!response.ok) throw new Error(`API ${response.status}`);
+    const data = await response.json();
+    const text = data.content?.[0]?.text || '';
+    const clean = text.replace(/```json|```/g, '').trim();
+    const scores = JSON.parse(clean);
+    saKeys.forEach(k => { S.saScores[k] = scores[k] ?? 0; });
+    S.simReflectionScore = scores['ref'] ?? 0;
+
+    S.isGrading = false;
+    S.gradingComplete = true;
+    autosave();
+    const saTotal = saKeys.reduce((s, k) => s + (S.saScores[k] || 0), 0);
+    displayResults(scenarioScore, quizScore, saTotal);
+    generateAIFeedback(scenarioScore, quizScore, saTotal);
+  } catch(e) {
+    console.warn('API grading failed, falling back to keyword grading:', e);
+    gradeWithKeywords(scenarioScore, quizScore);
+  }
+}
+
+function gradeWithKeywords(scenarioScore, quizScore) {
+  // Each question defines:
+  //   coreConcepts: phrases that show the student understood the main idea (2pts each, max 4pts)
+  //   vocab:        specific terms from the lesson (1pt each, max 3pts)
+  //   bonus:        extra credit for going deeper (1pt, max 1pt)
+  // Max per question = 8pts
+
+  const RUBRICS = {
+    p3: {
+      coreConcepts: [
+        ['price taker', 'takes the price', 'accept the price', 'cannot set', 'no control over price', 'price is set by the market'],
+        ['buyers would go elsewhere', 'go to another seller', 'buy from someone else', 'lose all customers', 'lose all buyers', 'no one would buy'],
+        ['identical', 'homogeneous', 'same product', 'no difference between'],
+        ['would not work', "wouldn't work", 'not possible', 'cannot charge more']
+      ],
+      vocab: ['price taker', 'homogeneous', 'perfect competition', 'commodity', 'market price', 'price maker'],
+      bonus: ['long.run', 'zero.*profit', 'normal profit', 'supply and demand']
+    },
+    p4: {
+      coreConcepts: [
+        ['non.price competition', 'non price competition', 'compete on.*than price', 'not competing on price'],
+        ['differentiat', 'stand out', 'unique', 'distinct', 'different from'],
+        ['brand loyalty', 'loyal customers', 'keep customers', 'retain customers', 'switching cost'],
+        ['advertis', 'loyalty app', 'loyalty program', 'marketing']
+      ],
+      vocab: ['non.price competition', 'product differentiation', 'differentiat', 'brand loyalty', 'monopolistic competition', 'substitute'],
+      bonus: ['long.run.*zero', 'zero.*profit', 'new.*enter', 'entry']
+    },
+    p5: {
+      coreConcepts: [
+        ['interdependen', 'watch each other', 'react to each other', 'respond to each other', 'rivals.*respond', 'competitor.*respond'],
+        ['price war', 'match.*price', 'lose.*customer', 'lose.*market share', 'undercut'],
+        ['few.*firm', 'small number', 'oligopoly', 'dominant.*firm'],
+        ['must respond', 'forced to respond', 'have to match', 'strategic']
+      ],
+      vocab: ['interdependen', 'oligopoly', 'price war', 'collusion', 'cartel', 'market share', 'barrier'],
+      bonus: ['game theory', 'prisoner', 'nash', 'kinked demand', 'predatory']
+    },
+    p6: {
+      coreConcepts: [
+        ['monopoly', 'only.*provider', 'no.*competition', 'no alternative', 'single.*seller', 'one.*provider'],
+        ['price maker', 'set.*own price', 'control.*price', 'charge.*anything', 'no.*competition.*to.*lower'],
+        ['harm.*consumer', 'exploit', 'overcharge', 'too high', 'unaffordable', 'public.*good', 'essential service', 'necessity'],
+        ['regulat', 'government.*control', 'government.*limit', 'antitrust', 'cap.*price', 'price.*cap']
+      ],
+      vocab: ['monopoly', 'price maker', 'regulat', 'antitrust', 'natural monopoly', 'barrier', 'price control', 'public'],
+      bonus: ['natural monopoly', 'infrastructure', 'deadweight', 'allocative']
+    },
+    p9: {
+      coreConcepts: [
+        ['perfect competition.*best', 'best.*perfect competition', 'perfect competition.*consumer', 'lowest price', 'most competitive'],
+        ['monopoly.*worst', 'worst.*monopoly', 'monopoly.*harm', 'highest price', 'no alternative', 'no choice'],
+        ['evidence', 'example', 'because', 'such as', 'for instance', 'like the'],
+        ['consumer', 'buyer', 'public', 'society']
+      ],
+      vocab: ['perfect competition', 'monopoly', 'price taker', 'price maker', 'barrier', 'differentiat', 'oligopoly', 'monopolistic'],
+      bonus: ['allocative.*efficient', 'deadweight', 'innovation', 'long.run.*zero']
+    }
+  };
+
+  // Rubric for the simulation reflection — scored out of 10
+  const REFLECTION_RUBRIC = {
+    // 2pts each core concept, max 6
+    coreConcepts: [
+      ['learned', 'realized', 'surprised', 'changed.*mind', 'thought.*but', 'expected.*but', 'did not expect', 'unexpected'],
+      ['decision', 'chose', 'choice', 'option', 'scenario'],
+      ['market structure', 'perfect competition', 'monopolistic', 'oligopoly', 'monopoly', 'my business', 'the business']
+    ],
+    // 1pt each vocab term, max 3
+    vocab: ['price taker', 'price maker', 'differentiat', 'interdependen', 'barrier', 'collusion', 'cartel',
+            'homogeneous', 'non.price', 'brand loyalty', 'regulat', 'antitrust', 'natural monopoly',
+            'commodity', 'market power', 'substitute', 'oligopoly', 'monopoly', 'monopolistic'],
+    // bonus 1pt
+    bonus: ['in the real world', 'applies to', 'I now understand', 'this made me think', 'similar to']
+  };
+
+  function scoreAnswer(text, rubric, maxScore) {
+    if (!text || text.trim().length < 10) return 0;
+    const t = text.toLowerCase();
+
+    // Core concepts: 2pts each, capped at floor(maxScore * 0.5)
+    const conceptCap = Math.floor(maxScore * 0.5);
+    let conceptPts = 0;
+    for (const group of rubric.coreConcepts) {
+      if (group.some(phrase => new RegExp(phrase).test(t))) {
+        conceptPts += 2;
+      }
+    }
+    conceptPts = Math.min(conceptPts, conceptCap);
+
+    // Vocab: 1pt each, capped at floor(maxScore * 0.375)
+    const vocabCap = Math.floor(maxScore * 0.375);
+    let vocabPts = 0;
+    for (const term of rubric.vocab) {
+      if (new RegExp(term).test(t)) vocabPts++;
+    }
+    vocabPts = Math.min(vocabPts, vocabCap);
+
+    // Bonus: 1pt
+    let bonusPts = 0;
+    if (rubric.bonus && rubric.bonus.some(b => new RegExp(b).test(t))) bonusPts = 1;
+
+    return Math.min(conceptPts + vocabPts + bonusPts, maxScore);
+  }
+
+  const saKeys = ['p3','p4','p5','p6','p9'];
+  saKeys.forEach(k => {
+    S.saScores[k] = scoreAnswer(S.shortAnswers[k], RUBRICS[k], 8);
+  });
+  S.simReflectionScore = scoreAnswer(S.simReflection, REFLECTION_RUBRIC, 10);
+
+  S.isGrading = false;
+  S.gradingComplete = true;
+  autosave();
+
+  const saTotal = saKeys.reduce((s, k) => s + (S.saScores[k] || 0), 0);
+  displayResults(scenarioScore, quizScore, saTotal);
+  generateAIFeedback(scenarioScore, quizScore, saTotal);
+}
+
+function displayResults(scenarioScore, quizScore, saTotal) {
+  const refScore = S.simReflectionScore || 0;
+  const total = scenarioScore + quizScore + saTotal + refScore;
+  const grade = total >= 99 ? 'A' : total >= 88 ? 'B' : total >= 77 ? 'C' : total >= 66 ? 'D' : 'F';
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  document.getElementById('grade-meta').innerHTML = `
+    <strong>${S.studentName || 'Student'}</strong><br>
+    Teacher: ${S.teacherName || '—'} &nbsp;·&nbsp; Period: ${S.classPeriod || '—'}<br>
+    Date: ${dateStr}
+  `;
+  document.getElementById('grade-letter').textContent = grade;
+  document.getElementById('grade-score').textContent = `${total} / 110`;
+
+  // Score table
+  const saKeys = ['p3','p4','p5','p6','p9'];
+  const saLabels = ['Perfect Competition (p.3)','Monopolistic Competition (p.4)','Oligopoly (p.5)','Monopoly (p.6)','Who Benefits? (p.9)'];
+
+  let rows = `<tr><th>Component</th><th>Score</th><th>Max</th></tr>`;
+  rows += `<tr><td>Scenario Sorter</td><td class="${scoreClass(scenarioScore,40)}">${scenarioScore}</td><td>40</td></tr>`;
+  saKeys.forEach((k, i) => {
+    const sc = S.saScores[k] || 0;
+    rows += `<tr><td>Short Answer: ${saLabels[i]}</td><td class="${scoreClass(sc,8)}">${sc}</td><td>8</td></tr>`;
+  });
+  const refScore2 = S.simReflectionScore || 0;
+  rows += `<tr><td>Simulation Reflection</td><td class="${scoreClass(refScore2,10)}">${refScore2}</td><td>10</td></tr>`;
+  rows += `<tr><td>Summary Quiz</td><td class="${scoreClass(quizScore,20)}">${quizScore}</td><td>20</td></tr>`;
+  rows += `<tr style="font-weight:600;"><td>Total</td><td>${total}</td><td>110</td></tr>`;
+  document.getElementById('score-table').innerHTML = rows;
+
+  // Needs improvement
+  const improveLinks = [];
+  SCENARIOS.forEach((s, i) => {
+    if (S.scenarioAnswers[i] !== s.answer) {
+      improveLinks.push({ label: `Scenario Sorter Q${i+1}`, page: 8 });
+    }
+  });
+  saKeys.forEach((k, i) => {
+    if ((S.saScores[k] || 0) < 5) {
+      improveLinks.push({ label: `Short Answer: ${saLabels[i]}`, page: [3,4,5,6,9][i] });
+    }
+  });
+  QUIZ_QUESTIONS.forEach((q, i) => {
+    if (S.quizAnswers[i] !== q.answer) {
+      improveLinks.push({ label: `Quiz Q${i+1}`, page: 12 });
+    }
+  });
+
+  if (improveLinks.length > 0) {
+    const ni = document.getElementById('needs-improvement');
+    ni.style.display = 'block';
+    document.getElementById('improve-links').innerHTML = improveLinks.map(l =>
+      `<div class="improve-link" onclick="goToPage(${l.page})">→ Review: ${l.label}</div>`
+    ).join('');
+  }
+
+  buildStudentWork();
+}
+
+function buildStudentWork() {
+  const container = document.getElementById('student-work');
+  if (!container) return;
+
+  const saKeys  = ['p3','p4','p5','p6','p9'];
+  const saQuestions = {
+    p3: 'A wheat farmer is considering charging $0.25 more per bushel than the market price. Using what you know about perfect competition, explain why this would or would not work. Use at least one vocabulary term from this page.',
+    p4: "Cruz's Tacos and three competitors all sell tacos at similar prices. Why does Cruz's still spend money on advertising and a loyalty app? Explain using at least one vocabulary term from this page.",
+    p5: 'When one major airline drops its prices, all the others usually match within hours. Explain why this happens using what you know about oligopoly. Use at least one vocabulary term.',
+    p6: 'ClearFlow Water Co. is the only water provider in the city. Explain why the government might want to regulate how much ClearFlow can charge, even though ClearFlow is a private company.',
+    p9: 'Of the four market structures, which do you think is best for consumers and which is worst? Use at least two specific pieces of evidence from the simulation to support your answer.'
+  };
+  const saLabels = {
+    p3: 'Short Answer — Perfect Competition',
+    p4: 'Short Answer — Monopolistic Competition',
+    p5: 'Short Answer — Oligopoly',
+    p6: 'Short Answer — Monopoly',
+    p9: 'Short Answer — Who Benefits?'
+  };
+
+  let html = '';
+
+  // ── SECTION 1: SHORT ANSWERS ──
+  html += `<div class="work-section">
+    <div class="work-section-title">📝 Short Answer Responses</div>`;
+  saKeys.forEach(k => {
+    const score = S.saScores[k] ?? 0;
+    const answer = S.shortAnswers[k]?.trim() || '(no answer)';
+    const badgeClass = score >= 6 ? 'good' : score >= 4 ? 'warn' : 'bad';
+    html += `<div class="work-item">
+      <div class="work-item-header">
+        <div class="work-item-q">${saLabels[k]}<br><span style="font-weight:400;color:var(--ink2);font-size:0.83rem;">${saQuestions[k]}</span></div>
+        <span class="work-score-badge ${badgeClass}">${score} / 8</span>
+      </div>
+      <div class="work-answer">${answer}</div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  // ── SECTION 1b: SIMULATION REFLECTION ──
+  const refScore = S.simReflectionScore ?? 0;
+  const refAnswer = S.simReflection?.trim() || '(no answer)';
+  const refBadge = refScore >= 8 ? 'good' : refScore >= 5 ? 'warn' : 'bad';
+  const bizName = BUSINESS_SIMS[S.selectedBusiness]?.name || 'Business Simulation';
+  const bizStructure = BUSINESS_SIMS[S.selectedBusiness]?.structure || '';
+  html += `<div class="work-section">
+    <div class="work-section-title">💡 Simulation Reflection</div>
+    <div class="work-item">
+      <div class="work-item-header">
+        <div class="work-item-q">Simulation Reflection — ${bizName} (${bizStructure})<br>
+          <span style="font-weight:400;color:var(--ink2);font-size:0.83rem;">Reflect on your experience running ${bizName}. What did you learn about how ${bizStructure} works in practice? Describe at least one decision that surprised you or changed how you think about this market structure. Use at least two vocabulary terms.</span>
+        </div>
+        <span class="work-score-badge ${refBadge}">${refScore} / 10</span>
+      </div>
+      <div class="work-answer">${refAnswer}</div>
+    </div>
+  </div>`;
+
+  // ── SECTION 2: SCENARIO SORTER ──
+  html += `<div class="work-section">
+    <div class="work-section-title">🎯 Scenario Sorter Responses</div>`;
+  SCENARIOS.forEach((s, i) => {
+    const chosen = S.scenarioAnswers[i];
+    const isCorrect = chosen === s.answer;
+    const chosenLabel = chosen !== undefined ? s.options[chosen] : '(not answered)';
+    const correctLabel = s.options[s.answer];
+    html += `<div class="work-item">
+      <div class="work-item-header">
+        <div class="work-item-q">Scenario ${i + 1}: ${s.q}</div>
+        <span class="work-score-badge ${isCorrect ? 'good' : 'bad'}">${isCorrect ? '5 / 5' : '0 / 5'}</span>
+      </div>
+      <div class="work-answer ${isCorrect ? 'correct' : 'wrong'}">${isCorrect ? '✅' : '❌'} ${chosenLabel}</div>
+      ${!isCorrect ? `<div class="work-correct-note">✅ Correct answer: ${correctLabel}</div>` : ''}
+    </div>`;
+  });
+  html += `</div>`;
+
+  // ── SECTION 3: SUMMARY QUIZ ──
+  html += `<div class="work-section">
+    <div class="work-section-title">📋 Summary Quiz Responses</div>`;
+  QUIZ_QUESTIONS.forEach((q, i) => {
+    const chosen = S.quizAnswers[i];
+    const isCorrect = chosen === q.answer;
+    const chosenLabel = chosen !== undefined ? q.options[chosen] : '(not answered)';
+    const correctLabel = q.options[q.answer];
+    html += `<div class="work-item">
+      <div class="work-item-header">
+        <div class="work-item-q">Q${i + 1}: ${q.q}</div>
+        <span class="work-score-badge ${isCorrect ? 'good' : 'bad'}">${isCorrect ? '2 / 2' : '0 / 2'}</span>
+      </div>
+      <div class="work-answer ${isCorrect ? 'correct' : 'wrong'}">${isCorrect ? '✅' : '❌'} ${chosenLabel}</div>
+      ${!isCorrect ? `<div class="work-correct-note">✅ Correct answer: ${correctLabel}</div>` : ''}
+    </div>`;
+  });
+  html += `</div>`;
+
+  container.innerHTML = html;
+}
+
+
+function scoreClass(score, max) {
+  const pct = score / max;
+  if (pct >= 0.75) return 'score-good';
+  if (pct >= 0.5) return 'score-warn';
+  return 'score-bad';
+}
+
+function generateAIFeedback(scenarioScore, quizScore, saTotal) {
+  const refScore = S.simReflectionScore || 0;
+  const total = scenarioScore + quizScore + saTotal + refScore;
+  const saKeys = ['p3','p4','p5','p6','p9'];
+  const saLabels = { p3:'Perfect Competition', p4:'Monopolistic Competition', p5:'Oligopoly', p6:'Monopoly', p9:'Who Benefits' };
+
+  const weakSA = saKeys.filter(k => (S.saScores[k] || 0) < 5).map(k => saLabels[k]);
+  const strongSA = saKeys.filter(k => (S.saScores[k] || 0) >= 6).map(k => saLabels[k]);
+
+  let feedback = '';
+
+  if (total >= 99) {
+    feedback = `Outstanding work! You demonstrated a strong grasp of all four market structures throughout this simulation.`;
+  } else if (total >= 88) {
+    feedback = `Great job overall! You showed solid understanding of market structures across most of the simulation.`;
+  } else if (total >= 77) {
+    feedback = `Good effort! You're building a solid foundation in market structures — a few areas to sharpen up.`;
+  } else {
+    feedback = `You completed the simulation — now is a great time to review the material and strengthen your understanding.`;
+  }
+
+  if (strongSA.length > 0) {
+    feedback += ` Your short answers on ${strongSA.join(' and ')} showed strong use of vocabulary and clear reasoning.`;
+  }
+  if (weakSA.length > 0) {
+    feedback += ` For next time, focus on using more specific vocabulary terms in your ${weakSA.join(' and ')} responses — that's where the points are.`;
+  }
+  if (scenarioScore < 24) {
+    feedback += ` Review the Scenario Sorter — revisiting the comparison table on page 7 will help you match real-world examples to the right market structures.`;
+  }
+  if (quizScore < 14) {
+    feedback += ` A few quiz questions tripped you up — try re-reading the glossary in the sidebar and the side-by-side comparison table.`;
+  }
+  if (refScore < 6) {
+    feedback += ` On future reflections, try naming a specific decision that surprised you and connecting it to a vocabulary term — that's what earns full marks.`;
+  }
+
+  const el = document.getElementById('ai-feedback-text');
+  if (el) el.textContent = feedback;
+}
+
+// ═══════════════════════════════════════════════════════
+// START
+// ═══════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>
